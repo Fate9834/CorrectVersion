@@ -322,6 +322,7 @@ void ip_handlepacket(struct sr_instance *sr,
         } else {
             req = sr_arpcache_queuereq(&(sr->cache), dst, cache_packet, 
                                       total_len, interface);
+            sr_handle_arpreq(sr, req);
           }
 
       } else if(ip_hdr->ip_p == ip_protocol_tcp||ip_hdr->ip_p == ip_protocol_udp){
@@ -366,6 +367,7 @@ void ip_handlepacket(struct sr_instance *sr,
             } else {
                 req = sr_arpcache_queuereq(&sr->cache, dst, cache_packet, 
                                           total_len, interface);
+                sr_handle_arpreq(sr, req);
             }
                     
         }
@@ -444,6 +446,7 @@ void ip_handlepacket(struct sr_instance *sr,
           } else {
               req = sr_arpcache_queuereq(&sr->cache, dst, 
                                         cache_packet, total_len, interface);
+              sr_handle_arpreq(sr, req);
             }  
             return;
         }
@@ -459,6 +462,7 @@ void ip_handlepacket(struct sr_instance *sr,
             /* If miss APR cache, add the packet to ARP request queue */
             req = sr_arpcache_queuereq(&sr->cache, lpmatch->gw.s_addr, ip_pkt, 
                                       len, s_interface->name);
+            sr_handle_arpreq(sr, req);
         } else {
 
             /* Hit ARP cache, send out the packet right away using next-hop */
@@ -559,6 +563,7 @@ void sr_handle_arpreq(struct sr_instance *sr, struct sr_arpreq *req)
               r_iface = sr_get_interface(sr, lpmatch->interface);           
               icmp_req = sr_arpcache_queuereq(&sr->cache, dst, 
                                         cache_packet, total_len, r_iface->name);
+              sr_handle_arpreq(sr, icmp_req);
             }
           ip_packet = next;
           if(ip_packet != 0){
