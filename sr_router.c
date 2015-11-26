@@ -333,7 +333,7 @@ void ip_handlepacket(struct sr_instance *sr,
           send_ip_hdr.ip_hl = 5;
           send_ip_hdr.ip_v = ip_hdr->ip_v;
           send_ip_hdr.ip_tos = 0;
-          send_ip_hdr.ip_id = ip_hdr->ip_id;
+          send_ip_hdr.ip_id = 0;
           send_ip_hdr.ip_off = htons(IP_DF);
           send_ip_hdr.ip_ttl = 64;
           send_ip_hdr.ip_p = ip_protocol_icmp;
@@ -398,7 +398,7 @@ void ip_handlepacket(struct sr_instance *sr,
           send_ip_hdr.ip_hl = 5;
           send_ip_hdr.ip_v = ip_hdr->ip_v;
           send_ip_hdr.ip_tos = 0;
-          send_ip_hdr.ip_id = ip_hdr->ip_id;
+          send_ip_hdr.ip_id = 0;
           send_ip_hdr.ip_off = htons(IP_DF);
           send_ip_hdr.ip_ttl = 64;
           send_ip_hdr.ip_p = ip_protocol_icmp;
@@ -514,7 +514,7 @@ void sr_handle_arpreq(struct sr_instance *sr, struct sr_arpreq *req)
           send_ip_hdr.ip_hl = 5;
           send_ip_hdr.ip_v = ip_hdr->ip_v;
           send_ip_hdr.ip_tos = 0;
-          send_ip_hdr.ip_id = ip_hdr->ip_id;
+          send_ip_hdr.ip_id = 0;
           send_ip_hdr.ip_off = htons(IP_DF);
           send_ip_hdr.ip_ttl = 64;
           send_ip_hdr.ip_p = ip_protocol_icmp;
@@ -594,7 +594,6 @@ int arp_validpacket(uint8_t *packet, unsigned int len){
     if (ntohs(arp_hdr->ar_pro) != arp_pro_ip){
       return 0;
     }
-
     return 1;
 }
 
@@ -617,25 +616,7 @@ int ip_validpacket(uint8_t *packet, unsigned int len){
     if (c_cksum != r_cksum){
       return 0;
     }
-
-    return 1;
-}
-
-int icmp_validpacket(struct sr_ip_hdr *ip_hdr){
-
-    /* Initialization */
-    sr_icmp_hdr_t *icmp_hdr = icmp_header(ip_hdr);
-    uint16_t c_cksum;
-    uint16_t r_cksum;
-
-    /* Check cksum */
-    r_cksum = icmp_hdr->icmp_sum;
-    icmp_hdr->icmp_sum = 0;
-    c_cksum = cksum(icmp_hdr, ip_len(ip_hdr)-ip_hl(ip_hdr));
-    if(c_cksum != r_cksum){
-      return 0;
-    }
-
+    ip_hdr->ip_sum = r_cksum;
     return 1;
 }
 
