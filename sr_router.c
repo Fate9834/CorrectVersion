@@ -552,7 +552,6 @@ void sr_handle_arpreq(struct sr_instance *sr, struct sr_arpreq *req)
                 
             /* Entry exists, we can send it out right now */
             sr_add_ethernet_send(sr, cache_packet, total_len, dst, ethertype_ip);
-            sr_arpreq_destroy(&sr->cache, req);
           } else {
 
               /* Get the interface at which the original packet arrived */
@@ -568,6 +567,8 @@ void sr_handle_arpreq(struct sr_instance *sr, struct sr_arpreq *req)
           ip_packet = next;
           if(ip_packet != 0){
             next = ip_packet->next;
+          } else {
+              sr_arpreq_destroy(&sr->cache, req);
           }
         }  
       } else {
