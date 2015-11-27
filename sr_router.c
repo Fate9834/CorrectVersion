@@ -617,7 +617,7 @@ int ip_validpacket(uint8_t *packet, unsigned int len){
     if (c_cksum != r_cksum){
       return 0;
     }
-    ip_hdr->ip_sum = r_cksum;
+    /* ip_hdr->ip_sum = r_cksum; */
     return 1;
 }
 
