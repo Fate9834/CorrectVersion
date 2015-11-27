@@ -333,7 +333,7 @@ void ip_handlepacket(struct sr_instance *sr,
           send_ip_hdr.ip_hl = 5;
           send_ip_hdr.ip_v = ip_hdr->ip_v;
           send_ip_hdr.ip_tos = 0;
-          send_ip_hdr.ip_id = 0;
+          send_ip_hdr.ip_id = ip_hdr->ip_id;
           send_ip_hdr.ip_off = htons(IP_DF);
           send_ip_hdr.ip_ttl = 64;
           send_ip_hdr.ip_p = ip_protocol_icmp;
@@ -398,7 +398,7 @@ void ip_handlepacket(struct sr_instance *sr,
           send_ip_hdr.ip_hl = 5;
           send_ip_hdr.ip_v = ip_hdr->ip_v;
           send_ip_hdr.ip_tos = 0;
-          send_ip_hdr.ip_id = 0;
+          send_ip_hdr.ip_id = ip_hdr->ip_id;
           send_ip_hdr.ip_off = htons(IP_DF);
           send_ip_hdr.ip_ttl = 64;
           send_ip_hdr.ip_p = ip_protocol_icmp;
@@ -514,7 +514,7 @@ void sr_handle_arpreq(struct sr_instance *sr, struct sr_arpreq *req)
           send_ip_hdr.ip_hl = 5;
           send_ip_hdr.ip_v = ip_hdr->ip_v;
           send_ip_hdr.ip_tos = 0;
-          send_ip_hdr.ip_id = 0;
+          send_ip_hdr.ip_id = ip_hdr->ip_id;
           send_ip_hdr.ip_off = htons(IP_DF);
           send_ip_hdr.ip_ttl = 64;
           send_ip_hdr.ip_p = ip_protocol_icmp;
