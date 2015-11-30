@@ -273,15 +273,14 @@ void ip_handlepacket(struct sr_instance *sr,
     printf("** Recieved IP packet\n");
 
     struct sr_ip_hdr *ip_hdr = ip_header(packet);
-    struct sr_if *r_interface = sr_get_interface(sr,interface);
+    struct sr_if *r_interface = sr_get_interface(sr, interface);
     struct sr_arpreq *req;
     struct sr_arpentry *arp_entry;
     uint8_t *cache_packet;
     uint16_t total_len;
     uint16_t icmp_len;
     uint32_t dst;
-    struct sr_icmp_t3_hdr icmp_error_packet;
-    
+
     if (!ip_validpacket(packet, len))
       return;
 
@@ -300,7 +299,7 @@ void ip_handlepacket(struct sr_instance *sr,
         icmp_hdr_ptr->icmp_sum = 0;
         icmp_hdr_ptr->icmp_type = htons(type_echo_reply);
         icmp_hdr_ptr->icmp_code = htons(code_echo_reply);
-	      icmp_len = ntohs(ip_hdr->ip_len)-ip_hdr->ip_hl * 4;
+  icmp_len = ntohs(ip_hdr->ip_len)-ip_hdr->ip_hl * 4;
             
         /* Copy the packet over */
         total_len = ip_len(ip_hdr);
@@ -333,32 +332,43 @@ void ip_handlepacket(struct sr_instance *sr,
           send_ip_hdr.ip_hl = 5;
           send_ip_hdr.ip_v = ip_hdr->ip_v;
           send_ip_hdr.ip_tos = 0;
-          send_ip_hdr.ip_id = ip_hdr->ip_id;
+          send_ip_hdr.ip_id = 0;
           send_ip_hdr.ip_off = htons(IP_DF);
-          send_ip_hdr.ip_ttl = 64;
+          send_ip_hdr.ip_ttl = 100;
           send_ip_hdr.ip_p = ip_protocol_icmp;
           send_ip_hdr.ip_sum = 0;
           send_ip_hdr.ip_dst = ip_hdr->ip_src;
-          send_ip_hdr.ip_src = r_interface->ip;
+          send_ip_hdr.ip_src = ip_hdr->ip_dst;
           dst = ip_hdr->ip_src;
+
+          struct sr_icmp_t3_hdr error_packet;
+
+          /* Modify the ICMP error packet */
+             
+          error_packet.icmp_type = 3;
+          error_packet.icmp_code = 3;             
+          error_packet.icmp_sum = 0;
+          error_packet.unused = 0;
+          error_packet.next_mtu = htons(MTU);
 
           icmp_len = sizeof(struct sr_icmp_t3_hdr);
           total_len = ICMP_IP_HDR_LEN_BYTE + icmp_len;
           send_ip_hdr.ip_len = htons(total_len);
           send_ip_hdr.ip_sum = cksum(&send_ip_hdr, ICMP_IP_HDR_LEN_BYTE);
-            
-          /* Modify ICMP error packet */
-	        icmp_error_packet = icmp_send_error_packet(ip_hdr, 3); 
 
           cache_packet = malloc(total_len);
-          memcpy(icmp_error_packet.data, ip_hdr, ICMP_DATA_SIZE);
+          ip_hdr->ip_sum = cksum(ip_hdr, ip_hdr->ip_hl * 4);
+          memcpy(error_packet.data, ip_hdr, ICMP_DATA_SIZE);
 
           memcpy(cache_packet, &(send_ip_hdr), ICMP_IP_HDR_LEN_BYTE);
-          memcpy(cache_packet + ICMP_IP_HDR_LEN_BYTE, &(icmp_error_packet), 
-                sizeof(sr_icmp_t3_hdr_t));
-
+          memcpy(cache_packet + ICMP_IP_HDR_LEN_BYTE, &(error_packet), 
+                sizeof(struct sr_icmp_t3_hdr));
+            
           /*Check if we should send immediately or wait */
           arp_entry = sr_arpcache_lookup(&sr->cache, dst);
+          struct sr_icmp_hdr *icmp_hdr_ptr = icmp_header((struct sr_ip_hdr *)cache_packet);
+
+          icmp_hdr_ptr->icmp_sum = cksum(icmp_hdr_ptr, icmp_len);
 
           if (arp_entry != 0){
 
@@ -368,8 +378,7 @@ void ip_handlepacket(struct sr_instance *sr,
                 req = sr_arpcache_queuereq(&sr->cache, dst, cache_packet, 
                                           total_len, interface);
                 sr_handle_arpreq(sr, req);
-            }
-                    
+            }          
         }
     } else {
 
@@ -398,9 +407,9 @@ void ip_handlepacket(struct sr_instance *sr,
           send_ip_hdr.ip_hl = 5;
           send_ip_hdr.ip_v = ip_hdr->ip_v;
           send_ip_hdr.ip_tos = 0;
-          send_ip_hdr.ip_id = ip_hdr->ip_id;
+          send_ip_hdr.ip_id = 0;
           send_ip_hdr.ip_off = htons(IP_DF);
-          send_ip_hdr.ip_ttl = 64;
+          send_ip_hdr.ip_ttl = 100;
           send_ip_hdr.ip_p = ip_protocol_icmp;
           send_ip_hdr.ip_sum = 0;
           send_ip_hdr.ip_dst = ip_hdr->ip_src;
@@ -488,7 +497,7 @@ void ip_handlepacket(struct sr_instance *sr,
 
 void sr_handle_arpreq(struct sr_instance *sr, struct sr_arpreq *req) 
 {
-    if (difftime(time(0), req->sent) > 1.0) {
+    if (difftime(time(0), req->sent) > 0.9) {
 
       /* Host is not reachable */
       if (req->times_sent >= 5) {
@@ -514,15 +523,15 @@ void sr_handle_arpreq(struct sr_instance *sr, struct sr_arpreq *req)
           send_ip_hdr.ip_hl = 5;
           send_ip_hdr.ip_v = ip_hdr->ip_v;
           send_ip_hdr.ip_tos = 0;
-          send_ip_hdr.ip_id = ip_hdr->ip_id;
+          send_ip_hdr.ip_id = 0;
           send_ip_hdr.ip_off = htons(IP_DF);
-          send_ip_hdr.ip_ttl = 64;
+          send_ip_hdr.ip_ttl = 100;
           send_ip_hdr.ip_p = ip_protocol_icmp;
           send_ip_hdr.ip_sum = 0;
           send_ip_hdr.ip_dst = ip_hdr->ip_src;
           send_ip_hdr.ip_src = s_interface->ip;
           dst = ip_hdr->ip_src;
-    	      
+            
           /* Copy the packet over */
           uint8_t *cache_packet;
           uint16_t total_len;
@@ -601,7 +610,7 @@ int arp_validpacket(uint8_t *packet, unsigned int len){
 int ip_validpacket(uint8_t *packet, unsigned int len){
 
     /* Initialization */
-    struct sr_ip_hdr * ip_hdr = ip_header(packet);
+    struct sr_ip_hdr *ip_hdr = ip_header(packet);
     uint16_t c_cksum = 0;
     uint16_t r_cksum = ip_hdr->ip_sum;
     unsigned int hdr_len = ip_hl(ip_hdr);
@@ -610,14 +619,13 @@ int ip_validpacket(uint8_t *packet, unsigned int len){
     if (len < sizeof(struct sr_ethernet_hdr) + hdr_len){
       return 0;
     }
-    
+
     /* Check cksum */
     ip_hdr->ip_sum = 0;
     c_cksum = cksum(ip_hdr, hdr_len);
     if (c_cksum != r_cksum){
       return 0;
     }
-    /* ip_hdr->ip_sum = r_cksum; */
     return 1;
 }
 
@@ -694,7 +702,6 @@ struct sr_rt* longest_prefix_matching(struct sr_instance *sr, uint32_t IP_dest)
       }
         ip_walker = ip_walker->next;
     }
-
     return lpmatch;
 }
 
