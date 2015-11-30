@@ -1,122 +1,198 @@
 
-#ifndef SR_NAT_TABLE_H
-#define SR_NAT_TABLE_H
-
-#include <inttypes.h>
-#include <time.h>
-#include <pthread.h>
-
-#include "sr_protocol.h"
+#include <signal.h>
+#include <assert.h>
+#include "sr_nat.h"
+#include <unistd.h>
 
 
-#define STARTING_PORT_NUMBER  (50000)
-#define LAST_PORT_NUMBER      (59999)
 
-#define SIMULTANIOUS_OPEN_WAIT_TIME (6)
+int sr_nat_init(struct sr_nat *nat) { /* Initializes the nat */
 
-/*******  Public  ********/
+  assert(nat);
 
-struct sr_instance;
-struct sr_if;
+  /* Acquire mutex lock */
+  pthread_mutexattr_init(&(nat->attr));
+  pthread_mutexattr_settype(&(nat->attr), PTHREAD_MUTEX_RECURSIVE);
+  int success = pthread_mutex_init(&(nat->lock), &(nat->attr));
 
-typedef enum {
-  nat_mapping_icmp,
-  nat_mapping_tcp
-  /* nat_mapping_udp, */
-} sr_nat_mapping_type;
+  /* Initialize timeout thread */
 
-typedef enum
-{
-   nat_conn_outbound_syn, /**< outbound SYN sent. */
-   nat_conn_inbound_syn_pending, /**< inbound SYN received (and queued). */
-   nat_conn_connected, /**< SYNs sent in both directions. Connection established. */
-   nat_conn_time_wait /**< One of the endpoints has sent a FIN. */
-} sr_nat_tcp_conn_state_t;
+  pthread_attr_init(&(nat->thread_attr));
+  pthread_attr_setdetachstate(&(nat->thread_attr), PTHREAD_CREATE_JOINABLE);
+  pthread_attr_setscope(&(nat->thread_attr), PTHREAD_SCOPE_SYSTEM);
+  pthread_attr_setscope(&(nat->thread_attr), PTHREAD_SCOPE_SYSTEM);
+  pthread_create(&(nat->thread), &(nat->thread_attr), sr_nat_timeout, nat);
 
-typedef enum
-{
-   /* add TCP connection variable members here */
-} sr_nat_tcp_conn_state_t;
+  /* CAREFUL MODIFYING CODE ABOVE THIS LINE! */
 
-typedef struct sr_nat_connection
-{
-   /* add TCP connection state data members here */
-   sr_nat_tcp_conn_state_t connectionState;
-   time_t lastAccessed;
-   sr_ip_hdr_t * queuedInboundSyn;
-   
-   struct
+  nat->mappings = NULL;
+  /* Initialize any variables here */
+
+ 
+   nat->nextIcmpIdentNumber = STARTING_PORT_NUMBER;
+   nat->nextTcpPortNumber = STARTING_PORT_NUMBER;
+
+  return success;
+}
+
+
+int sr_nat_destroy(struct sr_nat *nat) {  /* Destroys the nat (free memory) */
+
+  pthread_mutex_lock(&(nat->lock));
+
+  /* free nat memory here */
+
+  while (nat->mappings)
    {
-      uint32_t ipAddress;
-      uint16_t portNumber;
-   } external;
-   
-   struct sr_nat_connection *next;
-} sr_nat_connection_t;
+      sr_nat_destroy_mapping(nat, nat->mappings);
+   }
 
-struct sr_nat_connection {
-  /* add TCP connection state data members here */
+  pthread_kill(nat->thread, SIGKILL);
+  return pthread_mutex_destroy(&(nat->lock)) &&
+    pthread_mutexattr_destroy(&(nat->attr));
 
-   sr_nat_tcp_conn_state_t connectionState;
-   time_t lastAccessed;
-   sr_ip_hdr_t * queuedInboundSyn;
+}
 
-  struct sr_nat_connection *next;
-};
+void *sr_nat_timeout(void *nat_ptr) {  /* Periodic Timout handling */
+  struct sr_nat *nat = (struct sr_nat *)nat_ptr;
+  while (1) {
+    sleep(1.0);
+    pthread_mutex_lock(&(nat->lock));
 
-typedef struct sr_nat_mapping {
+    time_t curtime = time(NULL);
 
-  sr_nat_mapping_type type;
-  uint32_t ip_int; /* internal ip addr */
-  uint32_t ip_ext; /* external ip addr */
-  uint16_t aux_int; /* internal port or icmp id */
-  uint16_t aux_ext; /* external port or icmp id */
-  time_t last_updated; /* use to timeout mappings */
-  struct sr_nat_connection *conns; /* list of connections. null for ICMP */
-  struct sr_nat_mapping *next;
-} sr_nat_mapping_t;
+    /* handle periodic tasks here */
 
-typedef struct sr_nat {
-  /* add any fields here */
-  struct sr_nat_mapping *mappings;
+      sr_nat_mapping_t *mappingWalker = nat->mappings;
 
+	while(mappingWalker)
+{
 
-   struct sr_instance * routerState;
-   
-   uint16_t nextTcpPortNumber;
-   uint16_t nextIcmpIdentNumber;
-   
-   unsigned int tcpTransitoryTimeout;
-   unsigned int tcpEstablishedTimeout;
-   unsigned int icmpTimeout;
+/*************** If it is an ICMP packet******************/
+	if (mappingWalker->type == nat_mapping_icmp)
+         {
+            if (difftime(curtime, mappingWalker->last_updated) > nat->icmpTimeout)
+            {
+               sr_nat_mapping_t* next = mappingWalker->next;
+               fprintf(stderr, "ICMP mapping %u.%u.%u.%u:%u <-> %u timed out.\n");
+                  (ntohl(mappingWalker->ip_int) >> 24) & 0xFF,
+                  (ntohl(mappingWalker->ip_int) >> 16) & 0xFF,
+                  (ntohl(mappingWalker->ip_int) >> 8) & 0xFF,
+                  ntohl(mappingWalker->ip_int) & 0xFF,
+                  ntohs(mappingWalker->aux_int), ntohs(mappingWalker->aux_ext));
+               sr_nat_destroy_mapping(nat, mappingWalker);
+               mappingWalker = next;
+            }
+            else
+            {
+               mappingWalker = mappingWalker->next;
+            }
+         }
 
+/*************** If it is an TCP packet******************/
+lse if (mappingWalker->type == nat_mapping_tcp)
+         {
+           
+            }
 
-  /* threading */
-  pthread_mutex_t lock;
-  pthread_mutexattr_t attr;
-  pthread_attr_t thread_attr;
-  pthread_t thread;
-}sr_nat_t;
-
-
-int   sr_nat_init(struct sr_nat *nat);     /* Initializes the nat */
-int   sr_nat_destroy(struct sr_nat *nat);  /* Destroys the nat (free memory) */
-void *sr_nat_timeout(void *nat_ptr);  /* Periodic Timout */
+}      
+    pthread_mutex_unlock(&(nat->lock));
+  }
+  return NULL;
+}
 
 /* Get the mapping associated with given external port.
    You must free the returned structure if it is not NULL. */
 struct sr_nat_mapping *sr_nat_lookup_external(struct sr_nat *nat,
-    uint16_t aux_ext, sr_nat_mapping_type type );
+    uint16_t aux_ext, sr_nat_mapping_type type ) {
+
+  pthread_mutex_lock(&(nat->lock));
+
+  /* handle lookup here, malloc and assign to copy */
+  struct sr_nat_mapping *copy = NULL;
+
+  pthread_mutex_unlock(&(nat->lock));
+  return copy;
+}
 
 /* Get the mapping associated with given internal (ip, port) pair.
    You must free the returned structure if it is not NULL. */
 struct sr_nat_mapping *sr_nat_lookup_internal(struct sr_nat *nat,
-  uint32_t ip_int, uint16_t aux_int, sr_nat_mapping_type type );
+  uint32_t ip_int, uint16_t aux_int, sr_nat_mapping_type type ) {
+
+  pthread_mutex_lock(&(nat->lock));
+
+  /* handle lookup here, malloc and assign to copy. */
+  struct sr_nat_mapping *copy = NULL;
+
+  pthread_mutex_unlock(&(nat->lock));
+  return copy;
+}
 
 /* Insert a new mapping into the nat's mapping table.
-   You must free the returned structure if it is not NULL. */
+   Actually returns a copy to the new mapping, for thread safety.
+ */
 struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
-  uint32_t ip_int, uint16_t aux_int, sr_nat_mapping_type type );
+  uint32_t ip_int, uint16_t aux_int, sr_nat_mapping_type type ) {
+
+  pthread_mutex_lock(&(nat->lock));
+
+  /* handle insert here, create a mapping, and then return a copy of it */
+  struct sr_nat_mapping *mapping = NULL;
+
+  pthread_mutex_unlock(&(nat->lock));
+  return mapping;
+}
+
+/**
+ * sr_nat_destroy_mapping()\n
+ * @brief removes a mapping from the linked list. Based off of ARP cache implementation.
+ * @param nat pointer to NAT structure.
+ * @param natMapping mapping to remove from list.
+ * @warning Assumes that NAT structure is already locked!
+ */
+static void sr_nat_destroy_mapping(sr_nat_t* nat, sr_nat_mapping_t* natMapping)
+{
+   if (natMapping)
+   {
+      sr_nat_mapping_t *req, *prev = NULL, *next = NULL;
+
+/* move out all the natMapping we want to destroy and reconnect the mapping list */
 
 
-#endif
+      for (req = nat->mappings; req != NULL; req = req->next)
+      {
+         if (req == natMapping)
+         {
+            if (prev)
+            {
+               next = req->next;
+               prev->next = next;
+            }
+            else
+            {
+               next = req->next;
+               nat->mappings = next;
+            }
+            
+            break;
+         }
+         prev = req;
+      }
+      
+      while (natMapping->conns != NULL)
+      {
+         sr_nat_connection_t * curr = natMapping->conns;
+         natMapping->conns = curr->next;
+         
+         free(curr);
+      }
+      
+      free(natMapping);
+   }
+}
+
+
+
+
+
