@@ -121,6 +121,7 @@ struct sr_nat_mapping *sr_nat_lookup_external(struct sr_nat *nat,
      if ((mappingWalker->type == type) && (mappingWalker->aux_ext == aux_ext))
       {
          result = mappingWalker;
+         break;
       }
   }
   

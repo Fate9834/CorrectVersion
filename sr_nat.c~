@@ -74,12 +74,15 @@ void *sr_nat_timeout(void *nat_ptr) {  /* Periodic Timout handling */
             if (difftime(curtime, mappingWalker->last_updated) > nat->icmpTimeout)
             {
                sr_nat_mapping_t* next = mappingWalker->next;
-               fprintf(stderr, "ICMP mapping %u.%u.%u.%u:%u <-> %u timed out.\n");
+
+/***************Print out information of the destroyed mapping***************************************/
+              /* fprintf(stderr, "ICMP mapping %u.%u.%u.%u:%u <-> %u timed out.\n",
                   (ntohl(mappingWalker->ip_int) >> 24) & 0xFF,
                   (ntohl(mappingWalker->ip_int) >> 16) & 0xFF,
                   (ntohl(mappingWalker->ip_int) >> 8) & 0xFF,
                   ntohl(mappingWalker->ip_int) & 0xFF,
-                  ntohs(mappingWalker->aux_int), ntohs(mappingWalker->aux_ext));
+                  ntohs(mappingWalker->aux_int), ntohs(mappingWalker->aux_ext));*/
+
                sr_nat_destroy_mapping(nat, mappingWalker);
                mappingWalker = next;
             }
@@ -106,10 +109,28 @@ lse if (mappingWalker->type == nat_mapping_tcp)
 struct sr_nat_mapping *sr_nat_lookup_external(struct sr_nat *nat,
     uint16_t aux_ext, sr_nat_mapping_type type ) {
 
-  pthread_mutex_lock(&(nat->lock));
+  	pthread_mutex_lock(&(nat->lock));
 
   /* handle lookup here, malloc and assign to copy */
-  struct sr_nat_mapping *copy = NULL;
+  	struct sr_nat_mapping * copy = NULL, * result = NULL;
+
+/*************Search for mapping ******************/
+
+  for (sr_nat_mapping_t * mappingWalker = nat->mappings; mappingWalker != NULL; mappingWalker = mappingWalker->next)
+  {
+     if ((mappingWalker->type == type) && (mappingWalker->aux_ext == aux_ext))
+      {
+         result = mappingWalker;
+      }
+  }
+  
+  if (result)
+   {
+    result->last_updated = time(null);
+    copy = malloc(sizeof (struct sr_nat_mapping));
+    assert(copy);
+     memcpy(copy, result, sizeof (struct sr_nat_mapping))
+   }
 
   pthread_mutex_unlock(&(nat->lock));
   return copy;
@@ -122,8 +143,27 @@ struct sr_nat_mapping *sr_nat_lookup_internal(struct sr_nat *nat,
 
   pthread_mutex_lock(&(nat->lock));
 
-  /* handle lookup here, malloc and assign to copy. */
-  struct sr_nat_mapping *copy = NULL;
+ /* handle lookup here, malloc and assign to copy */
+  struct sr_nat_mapping * copy = NULL, * result = NULL;
+
+/*************Search for mapping ******************/
+
+  for (sr_nat_mapping_t * mappingWalker = nat->mappings; mappingWalker != NULL; mappingWalker = mappingWalker->next)
+	{
+	if ((mappingWalker->type == type) && (mappingWalker->aux_ext == aux_ext)&& (mappingWalker->ip_int == ip_int))
+	    {
+	       result = mappingWalker;
+	       break;
+	     }
+	}
+
+  if (result)
+      {
+	result->last_updated = time(null);
+	copy = malloc(sizeof (struct sr_nat_mapping));
+	assert(copy);
+	memcpy(copy, result, sizeof (struct sr_nat_mapping))
+	}
 
   pthread_mutex_unlock(&(nat->lock));
   return copy;
@@ -139,9 +179,21 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
 
   /* handle insert here, create a mapping, and then return a copy of it */
   struct sr_nat_mapping *mapping = NULL;
+  mapping = malloc(sizeof(sr_nat_mapping_t);
+  copy = malloc(sizeof(sr_nat_mapping_t);;
 
+  mapping->conns = NULL;
+  mapping->ip_int = ip_int;
+  mapping->aux_int = aux_int;
+  mapping->type = type;
+
+  /* Add mapping to the front of the list. */
+  mapping->next = nat->mappings;
+  nat->mappings = mapping;
+
+  memcpy(copy, mapping, sizeof(sr_nat_mapping_t));
   pthread_mutex_unlock(&(nat->lock));
-  return mapping;
+  return copy;
 }
 
 /**
@@ -191,8 +243,6 @@ static void sr_nat_destroy_mapping(sr_nat_t* nat, sr_nat_mapping_t* natMapping)
       free(natMapping);
    }
 }
-
-
 
 
 
