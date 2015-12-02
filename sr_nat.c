@@ -93,7 +93,7 @@ void *sr_nat_timeout(void *nat_ptr) {  /* Periodic Timout handling */
          }
 
 /*************** If it is an TCP packet******************/
-lse if (mappingWalker->type == nat_mapping_tcp)
+else if (mappingWalker->type == nat_mapping_tcp)
          {
            
             }
@@ -118,7 +118,7 @@ struct sr_nat_mapping *sr_nat_lookup_external(struct sr_nat *nat,
 
   for (sr_nat_mapping_t * mappingWalker = nat->mappings; mappingWalker != NULL; mappingWalker = mappingWalker->next)
   {
-     if ((mappingWalker->type == type) && (mappingWalker->aux_ext == aux_ext))
+     if ((mappingWalker->type == type) && (mappingWalker->aux_int == aux_int))
       {
          result = mappingWalker;
          break;
@@ -151,7 +151,7 @@ struct sr_nat_mapping *sr_nat_lookup_internal(struct sr_nat *nat,
 
   for (sr_nat_mapping_t * mappingWalker = nat->mappings; mappingWalker != NULL; mappingWalker = mappingWalker->next)
 	{
-	if ((mappingWalker->type == type) && (mappingWalker->aux_ext == aux_ext)&& (mappingWalker->ip_int == ip_int))
+	 if ((mappingWalker->type == type) && (mappingWalker->aux_ext == aux_ext)&& (mappingWalker->ip_int == ip_int))
 	    {
 	       result = mappingWalker;
 	       break;
