@@ -160,11 +160,11 @@ struct sr_nat_mapping *sr_nat_lookup_internal(struct sr_nat *nat,
 
   if (result)
       {
-	result->last_updated = time(null);
-	copy = malloc(sizeof (struct sr_nat_mapping));
-	assert(copy);
-	memcpy(copy, result, sizeof (struct sr_nat_mapping))
-	}
+	     result->last_updated = time(null);
+	     copy = malloc(sizeof (struct sr_nat_mapping));
+	     assert(copy);
+	     memcpy(copy, result, sizeof (struct sr_nat_mapping))
+	     }
 
   pthread_mutex_unlock(&(nat->lock));
   return copy;
@@ -181,20 +181,81 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
   /* handle insert here, create a mapping, and then return a copy of it */
   struct sr_nat_mapping *mapping = NULL;
   mapping = malloc(sizeof(sr_nat_mapping_t);
-  copy = malloc(sizeof(sr_nat_mapping_t);;
-
+ 
   mapping->conns = NULL;
+  mapping->aux_ext = natNextMappingNumber(nat,type);
+
   mapping->ip_int = ip_int;
   mapping->aux_int = aux_int;
   mapping->type = type;
+  mapping->last_updated = time(NULL);
+
+if (type == nat_mapping_icmp)
+   {
+      printf("%sCreated new ICMP mapping\n", );
+  
+   }
+   else if (type == nat_mapping_tcp)
+   {
+      printf("%sCreated new TCP mapping\n", );
+       
+   }
 
   /* Add mapping to the front of the list. */
   mapping->next = nat->mappings;
   nat->mappings = mapping;
 
+  copy = malloc(sizeof(sr_nat_mapping_t);;
   memcpy(copy, mapping, sizeof(sr_nat_mapping_t));
   pthread_mutex_unlock(&(nat->lock));
   return copy;
+}
+
+
+void NatHandleRecievedIpPacket(sr_instance_t* sr, sr_ip_hdr_t* ipPacket, unsigned int length,
+   sr_if_t const * const receivedInterface)
+{
+   if (ipPacket->ip_p == ip_protocol_tcp)
+   {
+      natHandleTcpPacket(sr, ipPacket, length, receivedInterface);
+   }
+   else if (ipPacket->ip_p == ip_protocol_icmp)
+   {
+      natHandleIcmpPacket(sr, ipPacket, length, receivedInterface);
+   }
+   else
+   {
+      fprintf(stderr, "%sReceived packet of unknown IP protocol type %u. Dropping.\n", ipPacket->ip_p);
+   }
+}
+
+
+/**
+ * natHandleIcmpPacket()\n
+ * @brief Function processes an ICMP packet when NAT functionality is enabled. 
+ * @param sr pointer to simple router structure.
+ * @param ipPacket pointer to received IP datagram with an ICMP payload.
+ * @param length length of the IP datagram
+ * @param receivedInterface interface on which this packet was originally received.
+ */
+static void natHandleIcmpPacket(sr_instance_t* sr, sr_ip_hdr_t* ipPacket, unsigned int length, sr_if_t const * const receivedInterface)
+{
+
+}
+
+
+/**
+ * natHandleTcpPacket()\n
+ * @brief Function processes a TCP packet when NAT functionality is enabled. 
+ * @param sr pointer to simple router structure.
+ * @param ipPacket pointer to received IP datagram with a TCP payload.
+ * @param length length of the IP datagram
+ * @param receivedInterface interface on which this packet was originally received.
+ */
+
+static void natHandleTcpPacket(sr_instance_t* sr, sr_ip_hdr_t* ipPacket, unsigned int length, sr_if_t const * const receivedInterface)
+{
+
 }
 
 /**
@@ -203,7 +264,7 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
  * @param nat pointer to NAT structure.
  * @param natMapping mapping to remove from list.
  * @warning Assumes that NAT structure is already locked!
- */
+*/
 static void sr_nat_destroy_mapping(sr_nat_t* nat, sr_nat_mapping_t* natMapping)
 {
    if (natMapping)
@@ -245,5 +306,51 @@ static void sr_nat_destroy_mapping(sr_nat_t* nat, sr_nat_mapping_t* natMapping)
    }
 }
 
+ /*
+ *-----------------------------------------------------------------------------
+ * Private Function Definitions
+ *-----------------------------------------------------------------------------
+ */
+
+static uint16_t natNextMappingNumber(sr_nat_t* nat, sr_nat_mapping_type mappingType)
+{
+   uint16_t startIndex;
+   sr_nat_mapping_t * mappingIterator = nat->mappings;
+   if (mappingType == nat_mapping_icmp)
+   {
+      startIndex = nat->nextIcmpIdentNumber;
+   }
+   else if (mappingType == nat_mapping_tcp)
+   {
+      startIndex = nat->nextTcpPortNumber;
+   }
+   
+   /* Look to see if a mapping already exists for this port number */
+   while (mappingIterator)
+   {
+      if ((mappingIterator->type == mappingType) && (htons(startIndex) == mappingIterator->aux_ext))
+      {
+         /* Mapping already exists for this value. Go to the next one and start the search over. */
+         startIndex = (startIndex == LAST_PORT_NUMBER) ? STARTING_PORT_NUMBER : (startIndex + 1);
+         mappingIterator = nat->mappings;
+      }
+      else
+      {
+         mappingIterator = mappingIterator->next;
+      }
+   }
+   
+   /* Setup the next search start location for the next mapping */
+   if (mappingType == nat_mapping_icmp)
+   {
+      nat->nextIcmpIdentNumber = (startIndex == LAST_PORT_NUMBER) ? STARTING_PORT_NUMBER : (startIndex + 1);
+   }
+   else if (mappingType == nat_mapping_tcp)
+   {
+      nat->nextTcpPortNumber = (startIndex == LAST_PORT_NUMBER) ? STARTING_PORT_NUMBER : (startIndex + 1);
+   }
+   
+   return startIndex;
+}
 
 
