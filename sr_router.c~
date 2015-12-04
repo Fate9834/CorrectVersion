@@ -629,23 +629,6 @@ int ip_validpacket(uint8_t *packet, unsigned int len){
     return 1;
 }
 
-int icmp_validpacket(struct sr_ip_hdr *ip_hdr){
-
-    /* Initialization */
-    sr_icmp_hdr_t *icmp_hdr = icmp_header(ip_hdr);
-    uint16_t c_cksum;
-    uint16_t r_cksum;
-
-    /* Check cksum */
-    r_cksum = icmp_hdr->icmp_sum;
-    icmp_hdr->icmp_sum = 0;
-    c_cksum = cksum(icmp_hdr, ip_len(ip_hdr)-ip_hl(ip_hdr));
-    if(c_cksum != r_cksum){
-      return 0;
-    }
-
-    return 1;
-}
 int sr_packet_is_for_me(struct sr_instance* sr, uint32_t ip_dst)
 {
     /* -- REQUIRES -- */

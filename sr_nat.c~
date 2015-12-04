@@ -241,7 +241,7 @@ void NatHandleRecievedIpPacket(sr_instance_t* sr, sr_ip_hdr_t* ipPacket, unsigne
 static void natHandleIcmpPacket(sr_instance_t* sr, sr_ip_hdr_t* ipPacket, unsigned int length, sr_if_t const * const receivedInterface)
 {
   sr_icmp_hdr_t * icmpHeader = icmp_header(ipPacket);
-  if( )
+  
 }
 
 
