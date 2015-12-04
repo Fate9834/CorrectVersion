@@ -4,7 +4,7 @@
 #include "sr_nat.h"
 #include <unistd.h>
 
-
+static const char internalInterfaceName[] = "eth1";
 
 int sr_nat_init(struct sr_nat *nat) { /* Initializes the nat */
 
@@ -250,13 +250,14 @@ while (1) {
     return;
   }
 
-  if ((getInternalInterface(sr)->ip == receivedInterface->ip) &&(sr_packet_is_for_me(sr, ip_dst)))
+  if ((sr_get_interface(sr,internalInterfaceName)->ip == receivedInterface->ip) &&(sr_packet_is_for_me(sr, ip_dst)))
   {
- /*packet is for me and */
+ /***************************packet is for me and it's from inside*****************************************/
     IpHandleReceivedPacketToUs(sr, ipPacket, length, receivedInterface);
   }
-  else if (getInternalInterface(sr)->ip == receivedInterface->ip)
+  else if (sr_get_interface(sr,internalInterfaceName)->ip == receivedInterface->ip)
   {
+/**************************************outbound packet**********************************/
     if ((icmpHeader->icmp_type == icmp_type_echo_request)||(icmpHeader->icmp_type == icmp_type_echo_reply))
     {
      sr_icmp_hdr_t * icmpPingHdr = (sr_icmp_hdr_t *) icmpHeader;
@@ -269,7 +270,7 @@ while (1) {
      }
      natHandleReceivedOutboundIpPacket(sr, ipPacket, length, receivedInterface, natLookupResult);
      free(natLookupResult);
-   }
+    }
    else 
    {
      sr_ip_hdr_t * embeddedIpPacket = NULL;
@@ -279,33 +280,51 @@ while (1) {
      {
       sr_icmp_t3_hdr_t * unreachableHeader = (sr_icmp_t3_hdr_t *) icmpHeader;
       embeddedIpPacket = (sr_ip_hdr_t *) unreachableHeader->data;
-    }
-    else
-    {
+     }
+     else
+     {
             /* By RFC, no other ICMP types have to support NAT traversal (SHOULDs 
              * instead of MUSTs). It's not that I'm lazy, it's just that this 
              * assignment is hard enough as it is. */
-fprintf(stderr, "\tDropping unsupported outbound ICMP packet Type: %d\n", icmpHeader->icmp_type);
-fprintf(stderr, "\tCode: %d\n", icmpHeader->icmp_code));
-return;
-}
-assert(embeddedIpPacket);
+     fprintf(stderr, "\tDropping unsupported outbound ICMP packet Type: %d\n", icmpHeader->icmp_type);
+     fprintf(stderr, "\tCode: %d\n", icmpHeader->icmp_code));
+     return;
+     }
+    assert(embeddedIpPacket);
 
-if (embeddedIpPacket->ip_p == ip_protocol_icmp)
-{
-  sr_icmp_t0_hdr_t * embeddedIcmpHeader = (sr_icmp_t0_hdr_t *) icmp_header(embeddedIpPacket);
-  if ((embeddedIcmpHeader->icmp_type == icmp_type_echo_request)||(embeddedIcmpHeader->icmp_type == icmp_type_echo_reply))
-  {
-   natLookupResult = sr_nat_lookup_internal(sr->nat, embeddedIpPacket->ip_dst, 
-    embeddedIcmpHeader->ident, nat_mapping_icmp);
- }
+    if (embeddedIpPacket->ip_p == ip_protocol_icmp)
+    {
+     sr_icmp_t0_hdr_t * embeddedIcmpHeader = (sr_icmp_t0_hdr_t *) icmp_header(embeddedIpPacket);
+     if ((embeddedIcmpHeader->icmp_type == icmp_type_echo_request)||(embeddedIcmpHeader->icmp_type == icmp_type_echo_reply))
+      {
+       natLookupResult = sr_nat_lookup_internal(sr->nat, embeddedIpPacket->ip_dst,embeddedIcmpHeader->ident, nat_mapping_icmp);
+      }
             /* Otherwise, we will not have a mapping for this ICMP type. 
              * Either way, echo request and echo reply are the only ICMP 
              * packet types that can generate another ICMP packet. */ 
-           }
+    }
+   else if(mbeddedIpPacket->ip_p == ip_protocol_icmp)
+   {
+    sr_tcp_hdr_t * embeddedTcpHeader = getTcpHeaderFromIpHeader(embeddedIpPacket);
+    natLookupResult = sr_nat_lookup_internal(sr->nat, embeddedIpPacket->ip_dst,
+    embeddedTcpHeader->destinationPort, nat_mapping_tcp);
+   }
+   else
+   {
+    return;
+    }
 
-         }
-       }
+ if (natLookupResult != NULL)
+     {
+       natHandleReceivedOutboundIpPacket(sr, ipPacket, length, receivedInterface, natLookupResult); free(natLookupResult);
+     }
+   }
+ }
+else{
+/*Inbound packet */
+
+}
+}
 
 /**
  * natHandleTcpPacket()\n
