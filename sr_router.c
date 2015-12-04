@@ -299,7 +299,7 @@ void ip_handlepacket(struct sr_instance *sr,
         icmp_hdr_ptr->icmp_sum = 0;
         icmp_hdr_ptr->icmp_type = htons(type_echo_reply);
         icmp_hdr_ptr->icmp_code = htons(code_echo_reply);
-  icmp_len = ntohs(ip_hdr->ip_len)-ip_hdr->ip_hl * 4;
+        icmp_len = ntohs(ip_hdr->ip_len)-ip_hdr->ip_hl * 4;
             
         /* Copy the packet over */
         total_len = ip_len(ip_hdr);
