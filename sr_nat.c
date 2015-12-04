@@ -240,10 +240,60 @@ void NatHandleRecievedIpPacket(sr_instance_t* sr, sr_ip_hdr_t* ipPacket, unsigne
  */
 static void natHandleIcmpPacket(sr_instance_t* sr, sr_ip_hdr_t* ipPacket, unsigned int length, sr_if_t const * const receivedInterface)
 {
+  
+  uint32_t ip_dst = ipPacket->ip_dsr;
   sr_icmp_hdr_t * icmpHeader = icmp_header(ipPacket);
-  if( )
-}
 
+  if (!icmp_validpacket(ipPacket));
+ {
+    printf("Received ICMP packet with wrong checksum. Dropping.\n");
+    return;
+ }
+
+ if ((getInternalInterface(sr)->ip == receivedInterface->ip) &&(sr_packet_is_for_me(sr, ip_dst)))
+ {
+ /*packet is for me and */
+    IpHandleReceivedPacketToUs(sr, ipPacket, length, receivedInterface);
+ }
+ else if (getInternalInterface(sr)->ip == receivedInterface->ip)
+ {
+    if ((icmpHeader->icmp_type == icmp_type_echo_request)||(icmpHeader->icmp_type == icmp_type_echo_reply))
+ {
+     sr_icmp_hdr_t * icmpPingHdr = (sr_icmp_hdr_t *) icmpHeader;
+     sr_nat_mapping_t * natLookupResult = sr_nat_lookup_internal(sr->nat, ipPacket->ip_src,icmpPingHdr->ident, nat_mapping_icmp);
+  
+     /* No mapping? Make one! */
+     if (natLookupResult == NULL)
+     {
+     natLookupResult = sr_nat_insert_mapping(sr->nat, ipPacket->ip_src, icmpPingHdr->ident, nat_mapping_icmp);
+     }
+     natHandleReceivedOutboundIpPacket(sr, ipPacket, length, receivedInterface, natLookupResult);
+     free(natLookupResult);
+ }
+ else 
+      {
+         sr_ip_hdr_t * embeddedIpPacket = NULL;
+         sr_nat_mapping_t * natLookupResult = NULL;
+         
+         if ((icmpHeader->icmp_type == icmp_type_desination_unreachable)||(icmpHeader->icmp_type == icmp_type_time_exceeded))
+         {
+            sr_icmp_t3_hdr_t * unreachableHeader = (sr_icmp_t3_hdr_t *) icmpHeader;
+            embeddedIpPacket = (sr_ip_hdr_t *) unreachableHeader->data;
+         }
+         else
+         {
+            /* By RFC, no other ICMP types have to support NAT traversal (SHOULDs 
+             * instead of MUSTs). It's not that I'm lazy, it's just that this 
+             * assignment is hard enough as it is. */
+	 fprintf(stderr, "\tDropping unsupported outbound ICMP packet Type: %d\n", icmpHeader->icmp_type);
+  	 fprintf(stderr, "\tCode: %d\n", icmpHeader->icmp_code));
+         return;
+         }
+         
+      }
+
+   }
+}
 
 /**
  * natHandleTcpPacket()\n
