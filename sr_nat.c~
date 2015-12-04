@@ -289,8 +289,23 @@ static void natHandleIcmpPacket(sr_instance_t* sr, sr_ip_hdr_t* ipPacket, unsign
   	 fprintf(stderr, "\tCode: %d\n", icmpHeader->icmp_code));
          return;
          }
+        assert(embeddedIpPacket);
          
- }
+         if (embeddedIpPacket->ip_p == ip_protocol_icmp)
+         {
+            sr_icmp_t0_hdr_t * embeddedIcmpHeader = (sr_icmp_t0_hdr_t *) icmp_header(embeddedIpPacket);
+            if ((embeddedIcmpHeader->icmp_type == icmp_type_echo_request)||(embeddedIcmpHeader->icmp_type == icmp_type_echo_reply))
+            {
+               natLookupResult = sr_nat_lookup_internal(sr->nat, embeddedIpPacket->ip_dst, 
+                  embeddedIcmpHeader->ident, nat_mapping_icmp);
+            }
+            /* Otherwise, we will not have a mapping for this ICMP type. 
+             * Either way, echo request and echo reply are the only ICMP 
+             * packet types that can generate another ICMP packet. */ 
+      }
+
+   }
+}
 
 /**
  * natHandleTcpPacket()\n
