@@ -299,9 +299,9 @@ if (embeddedIpPacket->ip_p == ip_protocol_icmp)
   {
     natLookupResult = sr_nat_lookup_internal(sr->nat, embeddedIpPacket->ip_dst,embeddedIcmpHeader->ident, nat_mapping_icmp);
   }
-/* Otherwise, we will not have a mapping for this ICMP type. 
-* Either way, echo request and echo reply are the only ICMP 
-* packet types that can generate another ICMP packet. */ 
+  /* Otherwise, we will not have a mapping for this ICMP type. */
+  /* Either way, echo request and echo reply are the only ICMP */
+  /* packet types that can generate another ICMP packet. */ 
 }
 else if(embeddedIpPacket->ip_p == ip_protocol_tcp)
 {
@@ -320,15 +320,16 @@ if (natLookupResult != NULL)
 }
 }
 }
-else{
-
+else
+{
 /***************************************Inbound packet*************************************/
   if (!sr_packet_is_for_me(sr, ip_dst))
 /**packet no for me**/
-    {struct sr_rt* lpmatch = longest_prefix_matching(sr, ipPacket->ip_dst);
+  {
+    struct sr_rt* lpmatch = longest_prefix_matching(sr, ipPacket->ip_dst);
 
-     if (sr_get_interface(sr,internal_if)->ip != sr_get_interface(sr, lpmatch->interface)->ip)
-     {
+    if (sr_get_interface(sr,internal_if)->ip != sr_get_interface(sr, lpmatch->interface)->ip)
+    {
 /* Sender not attempting to traverse the NAT. Allow the packet to be routed without alteration. */
 /* Just simply forward that packet*/
       struct sr_if* s_interface = sr_get_interface(sr, llpmatch->interface);
@@ -339,17 +340,15 @@ else{
       if (arp_entry == 0){
 
 /* If miss APR cache, add the packet to ARP request queue */
-        req = sr_arpcache_queuereq(&sr->cache, lpmatch->gw.s_addr, ip_pkt, 
-          len, s_interface->name);
+        req = sr_arpcache_queuereq(&sr->cache, lpmatch->gw.s_addr, ip_pkt, len, s_interface->name);
         sr_handle_arpreq(sr, req);
       } else {
 
 /* Hit ARP cache, send out the packet right away using next-hop */
 /* Encap the ARP request into ethernet frame and then send it */
         sr_ethernet_hdr_t sr_ether_pkt;
-
-memcpy(sr_ether_pkt.ether_dhost, arp_entry->mac, ETHER_ADDR_LEN); /* Address from routing table */
-memcpy(sr_ether_pkt.ether_shost, s_interface->addr, ETHER_ADDR_LEN); /* Hardware address of the outgoing interface */
+        memcpy(sr_ether_pkt.ether_dhost, arp_entry->mac, ETHER_ADDR_LEN); /* Address from routing table */
+        memcpy(sr_ether_pkt.ether_shost, s_interface->addr, ETHER_ADDR_LEN); /* Hardware address of the outgoing interface */
         sr_ether_pkt.ether_type = htons(ethertype_ip);
 
         uint8_t *packet_rqt;
@@ -363,8 +362,88 @@ memcpy(sr_ether_pkt.ether_shost, s_interface->addr, ETHER_ADDR_LEN); /* Hardware
         free(packet_rqt);
       }
     }
+    else
+    {
+      printf("%sUnsolicited inbound ICMP packet received attempting to send to internal IP. Dropping.\n");
+    }
+    return;
+  }
+  else if (ip_dst == sr_get_interface(sr,internalInterfaceName)->ip)/* for me but dst is internal interface*/
+  {
+    printf("%sReceived ICMP packet to our internal interface. Dropping.\n", );
+    return;
+  }
+  else if ((icmpHeader->icmp_type == icmp_type_echo_request) || (icmpHeader->icmp_type == icmp_type_echo_reply))/*for me & is echo_request/reply*/
+  {
+    sr_icmp_t0_hdr_t icmp_ping_hdr = (sr_icmp_t0_hdr_t *) icmpHeader;
+    sr_nat_mapping_t * natLookupResult = sr_nat_lookup_external(sr->nat, icmp_ping_hdr->ident, nat_mapping_icmp);
+
+    if (natLookupResult == NULL)
+    {
+/* No mapping exists. Assume ping is actually for us. */
+      IpHandleReceivedPacketToUs(sr, ipPacket, length, receivedInterface);
+    }
+    else
+    {
+      natHandleReceivedInboundIpPacket(sr, ipPacket, length, receivedInterface,natLookupResult);
+      free (natLookupResult);
+    }
+  }
+  else/*for me & is ICMP error message*/
+  {
+    sr_ip_hdr_t * embeddedIpPacket = NULL;
+    sr_nat_mapping_t * natLookupResult = NULL;
+    if ((icmpHeader->icmp_type == type_dst_unreach)||(icmpHeader->icmp_type ==type_time_exceeded)
+    {
+      sr_icmp_t3_hdr_t * unreachableHeader = (sr_icmp_t3_hdr_t *) icmpHeader;
+      embeddedIpPacket = (sr_ip_hdr_t *) unreachableHeader->data;
+    }
+    else
+    {
+      fprintf(stderr, "%sDropping unsupported inbound ICMP packet Type:\n", icmpHeader->icmp_type);
+      fprintf(stderr, "%sCode:\n", icmpHeader->icmp_code ); 
+      return;
+    }
+    assert(embeddedIpPacket);
+    if (embeddedIpPacket->ip_p == ip_protocol_icmp)
+    {
+      sr_icmp_t0_hdr_t * embeddedIcmpHeader = (sr_icmp_t0_hdr_t *) icmp_header(embeddedIpPacket);
+      if ((embeddedIcmpHeader->icmp_type == icmp_type_echo_request) || (embeddedIcmpHeader->icmp_type == icmp_type_echo_reply))
+      {
+        natLookupResult = sr_nat_lookup_external(sr->nat, embeddedIcmpHeader->ident,nat_mapping_icmp);
+      }
+/* Otherwise, we will not have a mapping for this ICMP type. Either way, echo request and echo reply are the only ICMP packet types that can generate another ICMP packet. */
+    }
+    else if (embeddedIpPacket->ip_p == ip_protocol_tcp)
+    {
+      sr_tcp_hdr_t * embeddedTcpHeader = tcp_header(embeddedIpPacket);
+      natLookupResult = sr_nat_lookup_external(sr->nat, embeddedTcpHeader->sourcePort, nat_mapping_tcp);
+    }
+    else
+    {
+/* No way we have a mapping for an unsupported protocol. 
+* Silently drop the packet. */
+    }
+    else if (embeddedIpPacket->ip_p == ip_protocol_tcp)
+    {
+      sr_tcp_hdr_t * embeddedTcpHeader = tcp_header(embeddedIpPacket);
+      natLookupResult = sr_nat_lookup_external(sr->nat, embeddedTcpHeader->sourcePort, nat_mapping_tcp);
+    }
+    else
+    {
+            /* No way we have a mapping for an unsupported protocol. 
+             * Silently drop the packet. */
+      return;
+    }
+    if (natLookupResult != NULL)
+    {
+      natHandleReceivedInboundIpPacket(sr, ipPacket, length, receivedInterface, natLookupResult);
+      free(natLookupResult);
+    }
   }
 }
+}
+
 
 /**
 * natHandleTcpPacket()\n
