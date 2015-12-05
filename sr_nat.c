@@ -325,13 +325,13 @@ else{
 /***************************************Inbound packet*************************************/
   if (!sr_packet_is_for_me(sr, ip_dst))
 /**packet no for me**/
-    struct sr_rt* lpmatch = longest_prefix_matching(sr, ipPacket->ip_dst);
+    {struct sr_rt* lpmatch = longest_prefix_matching(sr, ipPacket->ip_dst);
 
-  { if (sr_get_interface(sr,internal_if)->ip != sr_get_interface(sr, lpmatch->interface)->ip)
-    {
+     if (sr_get_interface(sr,internal_if)->ip != sr_get_interface(sr, lpmatch->interface)->ip)
+     {
 /* Sender not attempting to traverse the NAT. Allow the packet to be routed without alteration. */
 /* Just simply forward that packet*/
-      struct sr_if* s_interface = sr_get_interface(sr, longest_prefix_matching(sr,ipPacket->ip_dst)->interface);
+      struct sr_if* s_interface = sr_get_interface(sr, llpmatch->interface);
 
 /* Check ARP cache */
       struct sr_arpentry * arp_entry = sr_arpcache_lookup(&sr->cache, lpmatch->gw.s_addr);
@@ -363,7 +363,6 @@ memcpy(sr_ether_pkt.ether_shost, s_interface->addr, ETHER_ADDR_LEN); /* Hardware
         free(packet_rqt);
       }
     }
-
   }
 }
 
