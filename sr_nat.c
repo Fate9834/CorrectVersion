@@ -456,8 +456,93 @@ else
 
 static void natHandleTcpPacket(sr_instance_t* sr, sr_ip_hdr_t* ipPacket, unsigned int length, sr_if_t const * const receivedInterface)
 {
+  
 
 }
+
+
+
+
+static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_t* packet, unsigned int length, const struct sr_if* const receivedInterface, sr_nat_mapping_t * natMapping)
+{
+ if (packet->ip_p == ip_protocol_icmp)
+  { sr_icmp_hdr_t *icmpPacketHeader = icmp_header(packet);\
+   if ((icmpPacketHeader->icmp_type == icmp_type_echo_request) || (icmpPacketHeader->icmp_type == icmp_type_echo_reply))
+   {
+    sr_icmp_t0_hdr_t* rewrittenIcmpHeader = (sr_icmp_t0_hdr_t*) icmpPacketHeader;
+    int icmpLength = length - 4*packet->ip_hl;
+    assert(natMapping);
+
+         /* Handle ICMP identify remap and validate. */
+    rewrittenIcmpHeader->ident = natMapping->aux_ext;
+    rewrittenIcmpHeader->icmp_sum = 0;
+    rewrittenIcmpHeader->icmp_sum = cksum(rewrittenIcmpHeader, icmpLength);
+
+         /* Handle IP address remap and validate. */
+    packet->ip_src = sr_get_interface(sr,longest_prefix_matching(sr, packet->ip_dst)->interface)->ip;
+
+    IpForwardIpPacket(sr, packet, length, receivedInterface);
+  }
+  else
+  {
+   int icmpLength = length - getIpHeaderLength(packet);
+   sr_ip_hdr_t * originalDatagram;
+   if (icmpPacketHeader->icmp_type == icmp_type_desination_unreachable)
+   {
+            /* This packet is actually associated with a stream. */
+    sr_icmp_t3_hdr_t *unreachablePacketHeader = (sr_icmp_t3_hdr_t *) icmpPacketHeader;
+    originalDatagram = (sr_ip_hdr_t*) (unreachablePacketHeader->data);
+  }
+  else if (icmpPacketHeader->icmp_type == icmp_type_time_exceeded)
+  {
+    sr_icmp_t11_hdr_t *unreachablePacketHeader = (sr_icmp_t11_hdr_t *) icmpPacketHeader;
+    originalDatagram = (sr_ip_hdr_t*) (unreachablePacketHeader->data);
+  }
+  
+  assert(natMapping);
+  
+  if (originalDatagram->ip_p == ip_protocol_tcp)
+  {
+    sr_tcp_hdr_t *originalTransportHeader = getTcpHeaderFromIpHeader(originalDatagram);
+    
+            /* Perform mapping on embedded payload */
+    originalTransportHeader->destinationPort = natMapping->aux_ext;
+    originalDatagram->ip_dst = sr_get_interface(sr,
+     IpGetPacketRoute(sr, ntohl(packet->ip_dst))->interface)->ip;
+  }
+  else if (originalDatagram->ip_p == ip_protocol_icmp)
+  {
+    sr_icmp_t0_hdr_t *originalTransportHeader =
+    (sr_icmp_t0_hdr_t *) getIcmpHeaderFromIpHeader(originalDatagram);
+    
+            /* Perform mapping on embedded payload */
+    originalTransportHeader->ident = natMapping->aux_ext;
+    originalDatagram->ip_dst = sr_get_interface(sr,
+     IpGetPacketRoute(sr, ntohl(packet->ip_dst))->interface)->ip;
+  }
+  
+         /* Update ICMP checksum */
+  icmpPacketHeader->icmp_sum = 0;
+  icmpPacketHeader->icmp_sum = cksum(icmpPacketHeader, icmpLength);
+  
+         /* Rewrite actual packet header. */
+  packet->ip_src = sr_get_interface(sr,
+    IpGetPacketRoute(sr, ntohl(packet->ip_dst))->interface)->ip;
+  
+  IpForwardIpPacket(sr, packet, length, receivedInterface);
+}
+
+
+
+}
+else if (packet->ip_p == ip_protocol_tcp)
+{}
+
+}
+
+
+
+
 
 /**
 * sr_nat_destroy_mapping()\n
