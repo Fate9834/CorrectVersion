@@ -470,7 +470,7 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_
    if ((icmpPacketHeader->icmp_type == icmp_type_echo_request) || (icmpPacketHeader->icmp_type == icmp_type_echo_reply))
    {
     sr_icmp_t0_hdr_t* rewrittenIcmpHeader = (sr_icmp_t0_hdr_t*) icmpPacketHeader;
-    int icmpLength = length - 4*packet->ip_hl;
+    int icmpLength = length - (packet->ip_hl)*4;
     assert(natMapping);
 
          /* Handle ICMP identify remap and validate. */
@@ -485,14 +485,14 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_
   }
   else
   {
-   int icmpLength = length - getIpHeaderLength(packet);
+   int icmpLength = length - (packet->ip_h4)*4;
    sr_ip_hdr_t * originalDatagram;
    if (icmpPacketHeader->icmp_type == icmp_type_desination_unreachable)
    {
-            /* This packet is actually associated with a stream. */
+     /* This packet is actually associated with a stream. */
     sr_icmp_t3_hdr_t *unreachablePacketHeader = (sr_icmp_t3_hdr_t *) icmpPacketHeader;
     originalDatagram = (sr_ip_hdr_t*) (unreachablePacketHeader->data);
-  }
+   }
   else if (icmpPacketHeader->icmp_type == icmp_type_time_exceeded)
   {
     sr_icmp_t11_hdr_t *unreachablePacketHeader = (sr_icmp_t11_hdr_t *) icmpPacketHeader;
@@ -503,12 +503,11 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_
   
   if (originalDatagram->ip_p == ip_protocol_tcp)
   {
-    sr_tcp_hdr_t *originalTransportHeader = getTcpHeaderFromIpHeader(originalDatagram);
+    sr_tcp_hdr_t *originalTransportHeader = tcp_header(originalDatagram);
     
             /* Perform mapping on embedded payload */
     originalTransportHeader->destinationPort = natMapping->aux_ext;
-    originalDatagram->ip_dst = sr_get_interface(sr,
-     IpGetPacketRoute(sr, ntohl(packet->ip_dst))->interface)->ip;
+    originalDatagram->ip_dst = sr_get_interface(sr,longest_prefix_match(sr,packet->ip_dst)->interface)->ip;
   }
   else if (originalDatagram->ip_p == ip_protocol_icmp)
   {
@@ -517,8 +516,7 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_
     
             /* Perform mapping on embedded payload */
     originalTransportHeader->ident = natMapping->aux_ext;
-    originalDatagram->ip_dst = sr_get_interface(sr,
-     IpGetPacketRoute(sr, ntohl(packet->ip_dst))->interface)->ip;
+    originalDatagram->ip_dst = sr_get_interface(sr, longest_prefix_match(sr, packet->ip_dst)->interface)->ip;
   }
   
          /* Update ICMP checksum */
@@ -526,8 +524,7 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_
   icmpPacketHeader->icmp_sum = cksum(icmpPacketHeader, icmpLength);
   
          /* Rewrite actual packet header. */
-  packet->ip_src = sr_get_interface(sr,
-    IpGetPacketRoute(sr, ntohl(packet->ip_dst))->interface)->ip;
+    packet->ip_src = sr_get_interface(sr,longest_prefix_macth(sr, packet->ip_dst)->interface)->ip;
   
   IpForwardIpPacket(sr, packet, length, receivedInterface);
 }
@@ -535,10 +532,137 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_
 
 
 }
-else if (packet->ip_p == ip_protocol_tcp)
-{}
+ else if (packet->ip_p == ip_protocol_tcp)
+ {
+  sr_tcp_hdr_t* tcpHeader = tcp_header(packet);
+      
+      tcpHeader->sourcePort = natMapping->aux_ext;
+      packet->ip_src = sr_get_interface(sr,
+         IpGetPacketRoute(sr, ntohl(packet->ip_dst))->interface)->ip;
+      
+      natRecalculateTcpChecksum(packet, length);
+      IpForwardIpPacket(sr, packet, length, receivedInterface);
+}
 
 }
+
+static void natHandleReceivedInboundIpPacket(struct sr_instance* sr, sr_ip_hdr_t* packet, 
+   unsigned int length, const struct sr_if* const receivedInterface, sr_nat_mapping_t * natMapping)
+{
+   if (packet->ip_p == ip_protocol_icmp)
+   {
+      sr_icmp_hdr_t *icmpPacketHeader =icmp_header(packet);
+      
+      if ((icmpPacketHeader->icmp_type == icmp_type_echo_request) || (icmpPacketHeader->icmp_type == icmp_type_echo_reply))
+      {
+         sr_icmp_t0_hdr_t *echoPacketHeader = (sr_icmp_t0_hdr_t *) icmpPacketHeader;
+         int icmpLength = length - (packet->ip_v4)*4;
+         
+         assert(natMapping);
+         
+         /* Handle ICMP identify remap and validate. */
+         echoPacketHeader->ident = natMapping->aux_int;
+         echoPacketHeader->icmp_sum = 0;
+         echoPacketHeader->icmp_sum = cksum(echoPacketHeader, icmpLength);
+         
+         /* Handle IP address remap and validate. */
+         packet->ip_dst = natMapping->ip_int;
+         
+         IpForwardIpPacket(sr, packet, length, receivedInterface);
+      }
+      else 
+      {
+         int icmpLength = length - (packet->ip_v4)*4;
+         sr_ip_hdr_t * originalDatagram;
+         if (icmpPacketHeader->icmp_type == icmp_type_desination_unreachable)
+         {
+            /* This packet is actually associated with a stream. */
+            sr_icmp_t3_hdr_t *unreachablePacketHeader = (sr_icmp_t3_hdr_t *) icmpPacketHeader;
+            originalDatagram = (sr_ip_hdr_t*) (unreachablePacketHeader->data);
+         }
+         else if (icmpPacketHeader->icmp_type == icmp_type_time_exceeded)
+         {
+            sr_icmp_t3_hdr_t *unreachablePacketHeader = (sr_icmp_t3_hdr_t *) icmpPacketHeader;
+            originalDatagram = (sr_ip_hdr_t*) (unreachablePacketHeader->data);
+         }
+            
+         assert(natMapping);
+         
+         if (originalDatagram->ip_p == ip_protocol_tcp)
+         {
+            sr_tcp_hdr_t *originalTransportHeader = tcp_header(originalDatagram);
+            
+            /* Perform mapping on embedded payload */
+            originalTransportHeader->sourcePort = natMapping->aux_int;
+            originalDatagram->ip_src = natMapping->ip_int;
+         }
+         else if (originalDatagram->ip_p == ip_protocol_icmp)
+         {
+            sr_icmp_t0_hdr_t *originalTransportHeader =
+               (sr_icmp_t0_hdr_t *) icmp_header(originalDatagram);
+            
+            /* Perform mapping on embedded payload */
+            originalTransportHeader->ident = natMapping->aux_int;
+            originalDatagram->ip_src = natMapping->ip_int;
+         }
+         
+         /* Update ICMP checksum */
+         icmpPacketHeader->icmp_sum = 0;
+         icmpPacketHeader->icmp_sum = cksum(icmpPacketHeader, icmpLength);
+         
+         /* Rewrite actual packet header. */
+         packet->ip_dst = natMapping->ip_int;
+         
+         IpForwardIpPacket(sr, packet, length, receivedInterface);
+      }
+   }
+   else if (packet->ip_p == ip_protocol_tcp)
+   {
+      sr_tcp_hdr_t* tcpHeader =tcp_header(packet);
+            
+      tcpHeader->destinationPort = natMapping->aux_int;
+      packet->ip_dst = natMapping->ip_int;
+      
+      natRecalculateTcpChecksum(packet, length);
+      IpForwardIpPacket(sr, packet, length, receivedInterface);
+   }
+
+
+
+/**
+ * natRecalculateTcpChecksum()\n
+ * @brief Helper function for recalculating a TCP packet checksum after it has been altered.
+ * @param tcpPacket pointer to the IP datagram containing the TCP packet
+ * @param length length of the IP datagram in bytes
+ * @note The pointer is to the IP datagram rather than the TCP payload since 
+ *       some of the information in the IP header is needed to form the TCP 
+ *       pseudo-header for calculating the checksum.
+ */
+static void natRecalculateTcpChecksum(sr_ip_hdr_t * tcpPacket, unsigned int length)
+{
+   unsigned int tcpLength = length - (tcpPacket->ip_v4)*4;
+   uint8_t *packetCopy = malloc(sizeof(sr_tcp_ip_pseudo_hdr_t) + tcpLength);
+
+   sr_tcp_ip_pseudo_hdr_t * checksummedHeader = (sr_tcp_ip_pseudo_hdr_t *) packetCopy;
+   sr_tcp_hdr_t * const tcpHeader = (sr_tcp_hdr_t * const ) (((uint8_t*) tcpPacket)
+      + getIpHeaderLength(tcpPacket));
+   
+   /* I wish there was a better way to do this with pointer magic, but I don't 
+    * see it. Make a copy of the packet and prepend the IP pseudo-header to 
+    * the front. */
+   memcpy(packetCopy + sizeof(sr_tcp_ip_pseudo_hdr_t), tcpHeader, tcpLength);
+   checksummedHeader->sourceAddress = tcpPacket->ip_src;
+   checksummedHeader->destinationAddress = tcpPacket->ip_dst;
+   checksummedHeader->zeros = 0;
+   checksummedHeader->protocol = ip_protocol_tcp;
+   checksummedHeader->tcpLength = htons(tcpLength);
+   
+   tcpHeader->checksum = 0;
+   tcpHeader->checksum = cksum(packetCopy, sizeof(sr_tcp_ip_pseudo_hdr_t) + tcpLength);
+   
+   free(packetCopy);
+}
+
 
 
 

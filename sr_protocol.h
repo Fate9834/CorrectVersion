@@ -90,7 +90,7 @@ struct sr_icmp_hdr {
 typedef struct sr_icmp_hdr sr_icmp_hdr_t;
 
 
- struct sr_icmp_t0_hdr,sr_icmp_t8_hdr_t
+ struct sr_icmp_t0_hdr
 {  
    uint8_t icmp_type; /**< ICMP Type @see sr_icmp_type */
    uint8_t icmp_code; /**< ICMP Code (should be 0 for these) */
@@ -99,7 +99,7 @@ typedef struct sr_icmp_hdr sr_icmp_hdr_t;
    uint16_t seq_num; /**< Echo request/reply sequence number */
    uint8_t data[1]; /**< Variable length data sent with request/reply */
 }__attribute__ ((packed)) ;
-typedef struct sr_icmp_t0_hdr_t, sr_icmp_t8_hdr_t;
+typedef struct sr_icmp_t0_hdr_t;
 
 /* Structure of a type3 ICMP header
  */
@@ -128,10 +128,20 @@ typedef struct sr_icmp_t3_hdr sr_icmp_t3_hdr_t;
 typedef struct sr_tcp_hdr_t;
 
 
-
 /*
  * Structure of an internet header, naked of options.
  */
+typedef struct __attribute__((packed))
+{
+   uint32_t sourceAddress; /**< The source address of the IP datagram */
+   uint32_t destinationAddress; /**< The destination address of the IP datagram */
+   uint8_t zeros; /**< A byte of 0 */
+   uint8_t protocol; /**< IP Protocol field (should be ip_protocol_tcp) */
+   uint16_t tcpLength; /**< Length of the TCP packet */
+} sr_tcp_ip_pseudo_hdr_t;
+
+
+
 struct sr_ip_hdr
   {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -176,7 +186,7 @@ typedef struct sr_ethernet_hdr sr_ethernet_hdr_t;
 enum sr_icmp_type
 { 
   type_echo_reply = 0x0001,
-  type_echo_request = 0x1000;
+  type_echo_request = 0x1000,
   type_dst_unreach = 0x0011,
   type_time_exceeded = 0x1011,
 };
