@@ -4,7 +4,7 @@
 #include "sr_nat.h"
 #include <unistd.h>
 
-static const char internalInterfaceName[] = "eth1";
+static const char internal_if[] = "eth1";
 
 int sr_nat_init(struct sr_nat *nat) { /* Initializes the nat */
 
@@ -255,7 +255,7 @@ while (1) {
  /***************************packet is for me and it's from inside*****************************************/
     IpHandleReceivedPacketToUs(sr, ipPacket, length, receivedInterface);
   }
-  else if (sr_get_interface(sr,internalInterfaceName)->ip == receivedInterface->ip)
+  else if (sr_get_interface(sr,internal_if)->ip == receivedInterface->ip)
   {
 /**************************************outbound packet**********************************/
     if ((icmpHeader->icmp_type == icmp_type_echo_request)||(icmpHeader->icmp_type == icmp_type_echo_reply))
@@ -294,7 +294,7 @@ while (1) {
 
     if (embeddedIpPacket->ip_p == ip_protocol_icmp)
     {
-     sr_icmp_t0_hdr_t * embeddedIcmpHeader = (sr_icmp_t0_hdr_t *) icmp_header(embeddedIpPacket);
+     sr_icmp_t0_hdr_t * embeddedIcmpHeader = icmp_header(embeddedIpPacket);
      if ((embeddedIcmpHeader->icmp_type == icmp_type_echo_request)||(embeddedIcmpHeader->icmp_type == icmp_type_echo_reply))
       {
        natLookupResult = sr_nat_lookup_internal(sr->nat, embeddedIpPacket->ip_dst,embeddedIcmpHeader->ident, nat_mapping_icmp);
@@ -303,27 +303,68 @@ while (1) {
              * Either way, echo request and echo reply are the only ICMP 
              * packet types that can generate another ICMP packet. */ 
     }
-   else if(mbeddedIpPacket->ip_p == ip_protocol_icmp)
+   else if(embeddedIpPacket->ip_p == ip_protocol_tcp)
    {
-    sr_tcp_hdr_t * embeddedTcpHeader = getTcpHeaderFromIpHeader(embeddedIpPacket);
-    natLookupResult = sr_nat_lookup_internal(sr->nat, embeddedIpPacket->ip_dst,
-    embeddedTcpHeader->destinationPort, nat_mapping_tcp);
+    sr_tcp_hdr_t * embeddedTcpHeader = tcp_header(embeddedIpPacket);
+    natLookupResult = sr_nat_lookup_internal(sr->nat, embeddedIpPacket->ip_dst,embeddedTcpHeader->destinationPort, nat_mapping_tcp);
    }
    else
    {
     return;
     }
-
- if (natLookupResult != NULL)
+/************if hit the entry for that packet, modify and send it out************/
+  if (natLookupResult != NULL)
      {
-       natHandleReceivedOutboundIpPacket(sr, ipPacket, length, receivedInterface, natLookupResult); free(natLookupResult);
+       natHandleReceivedOutboundIpPacket(sr, ipPacket, length, receivedInterface, natLookupResult); 
+       free(natLookupResult);
      }
    }
  }
-else{
-/*Inbound packet */
+ else{
 
-}
+/***************************************Inbound packet*************************************/
+ if (!sr_packet_is_for_me(sr, ip_dst))
+/**packet no for me**/
+struct sr_rt* lpmatch = longest_prefix_matching(sr, ipPacket->ip_dst);
+
+  { if (sr_get_interface(sr,internal_if)->ip != sr_get_interface(sr, lpmatch->interface)->ip)
+  {
+            /* Sender not attempting to traverse the NAT. Allow the packet to be routed without alteration. */
+            /* Just simply forward that packet*/
+       struct sr_if* s_interface = sr_get_interface(sr, longest_prefix_matching(sr,ipPacket->ip_dst)->interface);
+           
+        /* Check ARP cache */
+         struct sr_arpentry * arp_entry = sr_arpcache_lookup(&sr->cache, lpmatch->gw.s_addr);
+
+        if (arp_entry == 0){
+
+            /* If miss APR cache, add the packet to ARP request queue */
+            req = sr_arpcache_queuereq(&sr->cache, lpmatch->gw.s_addr, ip_pkt, 
+                                      len, s_interface->name);
+            sr_handle_arpreq(sr, req);
+        } else {
+
+            /* Hit ARP cache, send out the packet right away using next-hop */
+            /* Encap the ARP request into ethernet frame and then send it */
+            sr_ethernet_hdr_t sr_ether_pkt;
+
+            memcpy(sr_ether_pkt.ether_dhost, arp_entry->mac, ETHER_ADDR_LEN); /* Address from routing table */
+            memcpy(sr_ether_pkt.ether_shost, s_interface->addr, ETHER_ADDR_LEN); /* Hardware address of the outgoing interface */
+            sr_ether_pkt.ether_type = htons(ethertype_ip);
+
+            uint8_t *packet_rqt;
+            unsigned int total_len = len + sizeof(struct sr_ethernet_hdr);
+            packet_rqt = malloc(total_len);
+            memcpy(packet_rqt, &(sr_ether_pkt), sizeof(sr_ether_pkt));
+            memcpy(packet_rqt + sizeof(sr_ether_pkt), ip_pkt, len);
+
+            /* Forward the IP packet*/
+            sr_send_packet(sr, packet_rqt, total_len, s_interface->name);
+            free(packet_rqt);
+          }
+        }
+
+   }
 }
 
 /**
