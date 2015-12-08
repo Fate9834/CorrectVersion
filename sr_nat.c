@@ -626,7 +626,7 @@ static void natHandleReceivedInboundIpPacket(struct sr_instance* sr, sr_ip_hdr_t
       natRecalculateTcpChecksum(packet, length);
       IpForwardIpPacket(sr, packet, length, receivedInterface);
    }
-
+}
 
 
 /**

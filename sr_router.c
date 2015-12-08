@@ -32,6 +32,7 @@
 #define ICMP_TYPE3_LEN 36
 #define ICMP_COPY_DATAGRAM_LEN 8
 #define ICMP_IP_HDR_LEN_BYTE 20
+#define DEFAULT_TTL 100
 /*---------------------------------------------------------------------
  * Method: sr_init(void)
  * Scope:  Global
@@ -285,61 +286,66 @@ void ip_handlepacket(struct sr_instance *sr,
     if (!ip_validpacket(packet, len))
       return;
 
-    /* Check interface IP to determine whether this IP packet is for me */
-    if (sr_packet_is_for_me(sr, ip_hdr->ip_dst)) {
-    
-      /* Check whether ICMP echo request or TCP/UDP */
-      if (ip_hdr->ip_p == ip_protocol_icmp){
+    /* Check whether NAT is enabled */
+    if (sr->nat = NULL){
+      
+      /* Check interface IP to determine whether this IP packet is for me */
+      if (sr_packet_is_for_me(sr, ip_hdr->ip_dst)) {
+      
+        /* Check whether ICMP echo request or TCP/UDP */
+        if (ip_hdr->ip_p == ip_protocol_icmp){
 
-        dst = ip_hdr->ip_src;
-        ip_hdr->ip_src = ip_hdr->ip_dst;
-        ip_hdr->ip_dst = dst;
+          dst = ip_hdr->ip_src;
+          ip_hdr->ip_src = ip_hdr->ip_dst;
+          ip_hdr->ip_dst = dst;
 
-        /* Modify the ICMP reply packet */
-        sr_icmp_hdr_t *icmp_hdr_ptr = icmp_header(ip_hdr);
+          /* Modify the ICMP reply packet */
+          sr_icmp_hdr_t *icmp_hdr_ptr = icmp_header(ip_hdr);
 
-        icmp_hdr_ptr->icmp_sum = 0;
-        icmp_hdr_ptr->icmp_type = htons(type_echo_reply);
-        icmp_hdr_ptr->icmp_code = htons(code_echo_reply);
-        icmp_len = ntohs(ip_hdr->ip_len)-ip_hdr->ip_hl * 4;
-            
-        /* Copy the packet over */
-        total_len = ip_len(ip_hdr);
-        cache_packet = malloc(total_len);
-        memcpy(cache_packet, ip_hdr, total_len);
+          icmp_hdr_ptr->icmp_sum = 0;
+          icmp_hdr_ptr->icmp_type = htons(type_echo_reply);
+          icmp_hdr_ptr->icmp_code = htons(code_echo_reply);
+          icmp_len = ntohs(ip_hdr->ip_len)-ip_hdr->ip_hl * 4;
+              
+          /* Copy the packet over */
+          total_len = ip_len(ip_hdr);
+          cache_packet = malloc(total_len);
+          memcpy(cache_packet, ip_hdr, total_len);
 
-        icmp_hdr_ptr = icmp_header((struct sr_ip_hdr *)cache_packet);
-        icmp_hdr_ptr->icmp_sum = cksum(icmp_hdr_ptr, icmp_len);
+          icmp_hdr_ptr = icmp_header((struct sr_ip_hdr *)cache_packet);
+          icmp_hdr_ptr->icmp_sum = cksum(icmp_hdr_ptr, icmp_len);
 
-        struct sr_ip_hdr *ip_hdr_csum = (struct sr_ip_hdr *)cache_packet;
-        ip_hdr_csum->ip_sum = cksum(ip_hdr_csum, sizeof(sr_ip_hdr_t));
+          struct sr_ip_hdr *ip_hdr_csum = (struct sr_ip_hdr *)cache_packet;
+          ip_hdr_csum->ip_sum = cksum(ip_hdr_csum, sizeof(sr_ip_hdr_t));
 
-        /* Check if we should send immediately or wait */
-        arp_entry = sr_arpcache_lookup(&sr->cache, dst);
+          /* Check if we should send immediately or wait */
+          arp_entry = sr_arpcache_lookup(&sr->cache, dst);
 
-        if (arp_entry != 0){
+          if (arp_entry != 0){
 
-          /* Entry Exists, we can send it out right now */
-          sr_add_ethernet_send(sr, cache_packet, total_len, dst, ethertype_ip);
-        } else {
-            req = sr_arpcache_queuereq(&(sr->cache), dst, cache_packet, 
-                                      total_len, interface);
-            sr_handle_arpreq(sr, req);
+            /* Entry Exists, we can send it out right now */
+            sr_add_ethernet_send(sr, cache_packet, total_len, dst, ethertype_ip);
+          } else {
+              req = sr_arpcache_queuereq(&(sr->cache), dst, cache_packet, 
+                                        total_len, interface);
+              sr_handle_arpreq(sr, req);
+            }
+
+        } else if(ip_hdr->ip_p == ip_protocol_tcp||ip_hdr->ip_p == ip_protocol_udp) {
+
+            /* Send ICMP port unreachable */            
+            icmp_type = 3;
+            icmp_code = 3;             
+            sr_icmp_with_payload(sr, packet, interface, icmp_type, icmp_code);
           }
+      } else {
 
-      } else if(ip_hdr->ip_p == ip_protocol_tcp||ip_hdr->ip_p == ip_protocol_udp){
-
-          /* Send ICMP port unreachable */
-             
-          icmp_type = 3;
-          icmp_code = 3;             
-          sr_icmp_with_payload(sr, packet, interface, icmp_type, icmp_code);
+          /* Packet is not for me，forward it */
+          ip_forwardpacket(sr, packet, len, interface);
         }
     } else {
-
-        /* Packet is not for me，forward it */
-        ip_forwardpacket(sr, packet, len, interface);
-      }  
+        /* NatHandleRecievedIpPacket(sr, packet, length, interface) */
+    }   
 }
 
 void ip_forwardpacket(struct sr_instance *sr,
@@ -644,7 +650,7 @@ struct sr_rt* longest_prefix_matching(struct sr_instance *sr, uint32_t IP_dest)
 }
 
 void sr_icmp_with_payload(struct sr_instance *sr,
-        uint8_t *packet, char *interface,
+        uint8_t *packet, unsigned int len, char *interface,
         uint8_t icmp_type, uint8_t icmp_code) {
 
     struct sr_ip_hdr *ip_hdr;
@@ -658,6 +664,9 @@ void sr_icmp_with_payload(struct sr_instance *sr,
 
     if (icmp_type == 11 && icmp_code == 0){
       ip_hdr = (struct sr_ip_hdr *)(packet);
+      if (sr->nat != NULL){
+        /* sr_nat_destroy_mapping(sr, packet, len, interface); */
+      }
     } else {
         ip_hdr = ip_header(packet);
     }
@@ -670,7 +679,7 @@ void sr_icmp_with_payload(struct sr_instance *sr,
     send_ip_hdr.ip_tos = 0;
     send_ip_hdr.ip_id = 0;
     send_ip_hdr.ip_off = htons(IP_DF);
-    send_ip_hdr.ip_ttl = 100;
+    send_ip_hdr.ip_ttl = DEFAULT_TTL;
     send_ip_hdr.ip_p = ip_protocol_icmp;
     send_ip_hdr.ip_sum = 0;
     send_ip_hdr.ip_dst = ip_hdr->ip_src;
