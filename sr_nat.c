@@ -38,7 +38,6 @@ int sr_nat_init(struct sr_nat *nat)
     int success = pthread_mutex_init(&(nat->lock), &(nat->attr));
 
     /* Initialize timeout thread */
-
     pthread_attr_init(&(nat->thread_attr));
     pthread_attr_setdetachstate(&(nat->thread_attr), PTHREAD_CREATE_JOINABLE);
     pthread_attr_setscope(&(nat->thread_attr), PTHREAD_SCOPE_SYSTEM);
@@ -46,22 +45,17 @@ int sr_nat_init(struct sr_nat *nat)
     pthread_create(&(nat->thread), &(nat->thread_attr), sr_nat_timeout, nat);
 
     /* CAREFUL MODIFYING CODE ABOVE THIS LINE! */
-
     nat->mappings = NULL;
-    /* Initialize any variables here */
-
-
     nat->nextIcmpIdentNumber = STARTING_PORT_NUMBER;
     nat->nextTcpPortNumber = STARTING_PORT_NUMBER;
 
     return success;
 }
 
-
 int sr_nat_destroy(struct sr_nat *nat) 
 {  
 
-/* Destroys the nat (free memory) */
+    /* Destroys the nat (free memory) */
     pthread_mutex_lock(&(nat->lock));
 
     while (nat->mappings)
@@ -70,9 +64,9 @@ int sr_nat_destroy(struct sr_nat *nat)
     }
 
     pthread_kill(nat->thread, SIGKILL);
+
     return pthread_mutex_destroy(&(nat->lock)) &&
            pthread_mutexattr_destroy(&(nat->attr));
-
 }
 
 void *sr_nat_timeout(void *nat_ptr) 
@@ -97,7 +91,7 @@ void *sr_nat_timeout(void *nat_ptr)
         {
           if (difftime(curtime, mappingWalker->last_updated) > nat->icmpTimeout)
           {
-            sr_nat_mapping_t* next = mappingWalker->next;
+            sr_nat_mapping_t *next = mappingWalker->next;
 
             /* Print out information of the destroyed mapping */
             sr_nat_destroy_mapping(nat, mappingWalker);
@@ -116,24 +110,24 @@ void *sr_nat_timeout(void *nat_ptr)
                   && (difftime(curtime, conn_walker->lastAccessed)
                   > nat->tcpEstablishedTimeout))
           	  {
-                sr_nat_connection_t* next = conn_walker->next;
-          	    sr_nat_destroy_connection(mappingWalker,conn_walker);
+                sr_nat_connection_t *next = conn_walker->next;
+          	    sr_nat_destroy_connection(mappingWalker, conn_walker);
           	    conn_walker = next;
           	  } else if (((conn_walker->connectionState == nat_conn_outbound_syn)
                          || (conn_walker->connectionState == nat_conn_time_wait))
                          && (difftime(curtime, conn_walker->lastAccessed)
                          > nat->tcpTransitoryTimeout))
                 { 
-                  sr_nat_connection_t* next = conn_walker->next;                  
+                  sr_nat_connection_t *next = conn_walker->next;                  
                   sr_nat_destroy_connection(mappingWalker, conn_walker);
                   conn_walker = next;
                 } else if ((conn_walker->connectionState == nat_conn_inbound_syn_pending)
                            && (difftime(curtime, conn_walker->lastAccessed)
                            > nat->tcpTransitoryTimeout))
-                  { sr_nat_connection_t* next = conn_walker->next;
+                  { sr_nat_connection_t *next = conn_walker->next;
 
                     if (conn_walker->queuedInboundSyn) {
-                  		struct sr_rt* lpmatch = longest_prefix_matching(nat->routerState,
+                  		struct sr_rt *lpmatch = longest_prefix_matching(nat->routerState,
                                                                      ((conn_walker->queuedInboundSyn)->ip_src))
                   		sr_icmp_with_payload(nat->routerState, conn_walker->queuedInboundSyn, lpmatch->interface, 3, 3);
                     }
@@ -144,7 +138,7 @@ void *sr_nat_timeout(void *nat_ptr)
                     }
             }
           	if (mappingWalker->conns == NULL) {
-              sr_nat_mapping_t* next = mappingWalker->next;
+              sr_nat_mapping_t *next = mappingWalker->next;
 
               sr_nat_destroy_mapping(nat, mappingWalker);
               mappingWalker = next;
