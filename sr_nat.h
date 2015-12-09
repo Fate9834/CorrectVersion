@@ -22,15 +22,14 @@ struct sr_if;
 typedef enum {
   nat_mapping_icmp,
   nat_mapping_tcp
-/* nat_mapping_udp, */
 } sr_nat_mapping_type;
 
 typedef enum
 {
-nat_conn_outbound_syn, /**< outbound SYN sent. */
-nat_conn_inbound_syn_pending, /**< inbound SYN received (and queued). */
-nat_conn_connected, /**< SYNs sent in both directions. Connection established. */
-nat_conn_time_wait /**< One of the endpoints has sent a FIN. */
+  nat_conn_outbound_syn, /**< outbound SYN sent. */
+  nat_conn_inbound_syn_pending, /**< inbound SYN received (and queued). */
+  nat_conn_connected, /**< SYNs sent in both directions. Connection established. */
+  nat_conn_time_wait /**< One of the endpoints has sent a FIN. */
 } sr_nat_tcp_conn_state_t;
 
 
@@ -54,36 +53,31 @@ typedef struct sr_nat_connection
 typedef struct sr_nat_mapping {
 
   sr_nat_mapping_type type;
-uint32_t ip_int; /* internal ip addr */
-uint32_t ip_ext; /* external ip addr */
-uint16_t aux_int; /* internal port or icmp id */
-uint16_t aux_ext; /* external port or icmp id */
-time_t last_updated; /* use to timeout mappings */
-struct sr_nat_connection *conns; /* list of connections. null for ICMP */
+  uint32_t ip_int; /* internal ip addr */
+  uint32_t ip_ext; /* external ip addr */
+  uint16_t aux_int; /* internal port or icmp id */
+  uint16_t aux_ext; /* external port or icmp id */
+  time_t last_updated; /* use to timeout mappings */
+  struct sr_nat_connection *conns; /* list of connections. null for ICMP */
   struct sr_nat_mapping *next;
 } sr_nat_mapping_t;
 
 typedef struct sr_nat {
-/* add any fields here */
+
   struct sr_nat_mapping *mappings;
-
-
   struct sr_instance * routerState;
-
   uint16_t nextTcpPortNumber;
   uint16_t nextIcmpIdentNumber;
-
   unsigned int tcpTransitoryTimeout;
   unsigned int tcpEstablishedTimeout;
   unsigned int icmpTimeout;
 
-
-/* threading */
+  /* Threading */
   pthread_mutex_t lock;
   pthread_mutexattr_t attr;
   pthread_attr_t thread_attr;
   pthread_t thread;
-}sr_nat_t;
+} sr_nat_t;
 
 
 int   sr_nat_init(struct sr_nat *nat);     /* Initializes the nat */
