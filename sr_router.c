@@ -280,7 +280,7 @@ void ip_handlepacket(struct sr_instance *sr,
       return;
 
     /* Check whether NAT is enabled */
-    if (sr->nat = NULL){
+    if (sr->nat == NULL){
       
       /* Check interface IP to determine whether this IP packet is for me */
       if (sr_packet_is_for_me(sr, ip_hdr->ip_dst)) {
@@ -582,11 +582,11 @@ int icmp_validpacket(struct sr_ip_hdr *ip_hdr){
 int tcp_validpacket(struct sr_ip_hdr *ip_hdr)
 {
 
-    sr_tcp_hdr_t *tcp_hdr = (sr_tcp_hdr_t *) (((uint8_t*) ip_hdr + ip_hdr->ip_hl * 4);
+    sr_tcp_hdr_t *tcp_hdr = (sr_tcp_hdr_t *) ((uint8_t*) ip_hdr + ip_hdr->ip_hl * 4);
     unsigned int tcp_len = ip_hdr->ip_len - ip_hdr->ip_hl * 4;
     uint8_t *cache_packet = malloc(sizeof(sr_tcp_ip_pseudo_hdr_t) + tcp_len);
     uint16_t c_cksum = 0;
-    uint16_t r_cksum = tcp_hdr->ip_sum;
+    uint16_t r_cksum = tcp_hdr->checksum;
     sr_tcp_ip_pseudo_hdr_t *checksummedHeader = (sr_tcp_ip_pseudo_hdr_t *) cache_packet;
     
     /* Check cksum */
@@ -687,7 +687,7 @@ struct sr_rt* longest_prefix_matching(struct sr_instance *sr, uint32_t ip_dest)
 }
 
 void sr_icmp_with_payload(struct sr_instance *sr,
-        sr_ip_hdr_t *ip_hdr, unsigned int len, char *interface,
+        sr_ip_hdr_t *ip_hdr, char *interface,
         uint8_t icmp_type, uint8_t icmp_code) {
 
     struct sr_if *r_interface = sr_get_interface(sr, interface);
@@ -700,7 +700,7 @@ void sr_icmp_with_payload(struct sr_instance *sr,
 
     if (icmp_type == 11 && icmp_code == 0){
       if (sr->nat != NULL){
-        /* sr_nat_destroy_mapping(sr, packet, len, interface); */
+        /* sr_nat_destroy_mapping(); */
       }
     }
 

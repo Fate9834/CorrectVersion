@@ -89,8 +89,7 @@ struct sr_icmp_hdr {
 } __attribute__ ((packed)) ;
 typedef struct sr_icmp_hdr sr_icmp_hdr_t;
 
-
- struct sr_icmp_t0_hdr
+struct sr_icmp_t0_hdr
 {  
    uint8_t icmp_type; /**< ICMP Type @see sr_icmp_type */
    uint8_t icmp_code; /**< ICMP Code (should be 0 for these) */
@@ -117,14 +116,6 @@ typedef struct sr_icmp_t3_hdr sr_icmp_t3_hdr_t;
 /*
  * Structure of an internet header, naked of options.
  */
-typedef struct __attribute__((packed))
-{
-   uint32_t sourceAddress; /**< The source address of the IP datagram */
-   uint32_t destinationAddress; /**< The destination address of the IP datagram */
-   uint8_t zeros; /**< A byte of 0 */
-   uint8_t protocol; /**< IP Protocol field (should be ip_protocol_tcp) */
-   uint16_t tcpLength; /**< Length of the TCP packet */
-} sr_tcp_ip_pseudo_hdr_t;
 
 struct sr_ip_hdr
   {
