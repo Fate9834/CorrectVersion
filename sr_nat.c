@@ -135,9 +135,7 @@ void *sr_nat_timeout(void *nat_ptr)
                     if (conn_walker->queuedInboundSyn) {
                   		struct sr_rt* lpmatch = longest_prefix_matching(nat->routerState,
                                                                      ((conn_walker->queuedInboundSyn)->ip_src))
-                  		struct sr_if* interface = sr_get_interface(sr, lpmatch->interface);
-
-                  		sr_icmp_with_payload(nat->routerState, conn_walker->queuedInboundSyn, interface, 3, 3);
+                  		sr_icmp_with_payload(nat->routerState, conn_walker->queuedInboundSyn, lpmatch->interface, 3, 3);
                     }
                     sr_nat_destroy_connection(mappingWalker, conn_walker);
                     conn_walker = next;
@@ -273,6 +271,7 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
     return copy;
 }
 
+<<<<<<< HEAD
 static sr_nat_connection_t *sr_nat_lookup_connection(sr_nat_mapping_t *natEntry, uint32_t ip_ext, 
                                                     uint16_t port_ext)
 {
@@ -311,10 +310,10 @@ void nat_handle_ippacket(struct sr_instance *sr,
 static sr_nat_connection_t *sr_nat_lookup_connection(sr_nat_mapping_t *natEntry, uint32_t ip_ext, 
                                                     uint16_t port_ext)
 {
-   sr_nat_connection_t *conn_walker = natEntry->conns;
+    sr_nat_connection_t *conn_walker = natEntry->conns;
    
-   while (conn_walker != NULL)
-   {
+    while (conn_walker != NULL)
+    {
       if ((conn_walker->external.ipAddress == ip_ext) 
          && (conn_walker->external.portNumber == port_ext))
       {
@@ -323,9 +322,9 @@ static sr_nat_connection_t *sr_nat_lookup_connection(sr_nat_mapping_t *natEntry,
       }
       
       conn_walker = conn_walker->next;
-   }
+    }
 
-   return conn_walker;
+    return conn_walker;
 }
 
 /*
@@ -340,170 +339,174 @@ static void natHandleIcmpPacket(sr_instance_t *sr,
                                sr_ip_hdr_t *ipPacket, unsigned int length,
                                sr_if_t const *const r_interface)
 {
-  uint32_t ip_dst = ipPacket->ip_dsr;
-  sr_icmp_hdr_t *icmpHeader = icmp_header(ipPacket);
+    uint32_t ip_dst = ipPacket->ip_dsr;
+    sr_icmp_hdr_t *icmpHeader = icmp_header(ipPacket);
 
-  if (!icmp_validpacket(ipPacket));
-  {
-    return;
-  }
-
-  if ((sr_get_interface(sr, internal_if)->ip == r_interface->ip)
-      && (sr_packet_is_for_me(sr, ip_dst)))
-  {
-    /* Packet is for me and it's from inside */
-    IpHandleReceivedPacketToUs(sr, ipPacket, length, r_interface);
-  }
-  else if (sr_get_interface(sr, internal_if)->ip == r_interface->ip)
-  {
-    /* Outbound packet */
-    if ((icmpHeader->icmp_type == icmp_type_echo_request)
-       || (icmpHeader->icmp_type == icmp_type_echo_reply))
+    if (!icmp_validpacket(ipPacket));
     {
-      sr_icmp_hdr_t *icmpPingHdr = (sr_icmp_hdr_t *)icmpHeader;
-      sr_nat_mapping_t *natLookupResult = sr_nat_lookup_internal(sr->nat, ipPacket->ip_src,
-                                                                icmpPingHdr->ident, nat_mapping_icmp);
+      return;
+    }
 
-      /* If mapping doesn't exist, create one */
-      if (natLookupResult == NULL)
+    if ((sr_get_interface(sr, internal_if)->ip == r_interface->ip)
+        && (sr_packet_is_for_me(sr, ip_dst)))
+    {
+
+      /* Packet is for me and it's from inside */
+      IpHandleReceivedPacketToUs(sr, ipPacket, length, r_interface);
+    }
+    else if (sr_get_interface(sr, internal_if)->ip == r_interface->ip)
+    {
+
+      /* Outbound packet */
+      if ((icmpHeader->icmp_type == icmp_type_echo_request)
+         || (icmpHeader->icmp_type == icmp_type_echo_reply))
       {
-        natLookupResult = sr_nat_insert_mapping(sr->nat, ipPacket->ip_src,
-                                               icmpPingHdr->ident, nat_mapping_icmp);
-      }
-      natHandleReceivedOutboundIpPacket(sr, ipPacket, length, r_interface, natLookupResult);
-      free(natLookupResult);
-    } else {
-        sr_ip_hdr_t * embeddedIpPacket = NULL;
-        sr_nat_mapping_t * natLookupResult = NULL;
+        sr_icmp_hdr_t *icmpPingHdr = (sr_icmp_hdr_t *)icmpHeader;
+        sr_nat_mapping_t *natLookupResult = sr_nat_lookup_internal(sr->nat, ipPacket->ip_src,
+                                                                  icmpPingHdr->ident, nat_mapping_icmp);
 
-        if ((icmpHeader->icmp_type == icmp_type_desination_unreachable)||(icmpHeader->icmp_type == icmp_type_time_exceeded))
-        {
-          sr_icmp_t3_hdr_t * unreachableHeader = (sr_icmp_t3_hdr_t *) icmpHeader;
-          embeddedIpPacket = (sr_ip_hdr_t *) unreachableHeader->data;
-        }
-        else
-        {
-          /* By RFC, no other ICMP types have to support NAT traversal (SHOULDs 
-          * instead of MUSTs). It's not that I'm lazy, it's just that this 
-          * assignment is hard enough as it is. */
-          fprintf(stderr, "\tDropping unsupported outbound ICMP packet Type: %d\n", icmpHeader->icmp_type);
-          fprintf(stderr, "\tCode: %d\n", icmpHeader->icmp_code));
-          return;
-        }
-        assert(embeddedIpPacket);
-
-        if (embeddedIpPacket->ip_p == ip_protocol_icmp)
-        {
-          sr_icmp_t0_hdr_t * embeddedIcmpHeader = icmp_header(embeddedIpPacket);
-          if ((embeddedIcmpHeader->icmp_type == icmp_type_echo_request)
-             || (embeddedIcmpHeader->icmp_type == icmp_type_echo_reply))
-          {
-            natLookupResult = sr_nat_lookup_internal(sr->nat, embeddedIpPacket->ip_dst,
-                                                    embeddedIcmpHeader->ident, nat_mapping_icmp);
-          }
-          /* Otherwise, we will not have a mapping for this ICMP type. */
-          /* Either way, echo request and echo reply are the only ICMP */
-          /* packet types that can generate another ICMP packet. */ 
-        }
-        else if(embeddedIpPacket->ip_p == ip_protocol_tcp)
-        {
-          sr_tcp_hdr_t *embeddedTcpHeader = tcp_header(embeddedIpPacket);
-          natLookupResult = sr_nat_lookup_internal(sr->nat, embeddedIpPacket->ip_dst,
-                                                  embeddedTcpHeader->destinationPort, nat_mapping_tcp);
-        } else {
-            return;
-          }
-
-        /* If hit the entry for that packet, modify and send it out */
-        if (natLookupResult != NULL)
-        {
-          natHandleReceivedOutboundIpPacket(sr, ipPacket, length, r_interface, natLookupResult); 
-          free(natLookupResult);
-        }
-      }
-  } else {
-
-      /* Inbound packet */
-      if (!sr_packet_is_for_me(sr, ip_dst)) 
-      {
-        /* Packet no for me */
-        struct sr_rt* lpmatch = longest_prefix_matching(sr, ipPacket->ip_dst);
-
-        if ((sr_get_interface(sr,internalInterfaceName)->ip) != (sr_get_interface(sr,lpmatch->interface)->ip))
-        {
-        ip_forwardpacket(sr, ipPacket, length, receivedInterface->name)
-        } else {
-            printf("%sUnsolicited inbound ICMP packet received attempting to send to internal IP. Dropping.\n");
-          }
-        return;
-      }
-      else if (ip_dst == sr_get_interface(sr, internal_if)->ip)
-      {
-        /* For me but dst is internal interface */
-        printf("%sReceived ICMP packet to our internal interface. Dropping.\n", );
-        return;
-      }
-      else if ((icmpHeader->icmp_type == icmp_type_echo_request)
-              || (icmpHeader->icmp_type == icmp_type_echo_reply))   /* For me & is echo_request/reply */
-      {
-        sr_icmp_t0_hdr_t icmp_ping_hdr = (sr_icmp_t0_hdr_t *)icmpHeader;
-        sr_nat_mapping_t *natLookupResult = sr_nat_lookup_external(sr->nat, icmp_ping_hdr->ident,
-                                                                  nat_mapping_icmp);
-
+        /* If mapping doesn't exist, create one */
         if (natLookupResult == NULL)
         {
-        
-          /* No mapping exists. Assume ping is actually for us */
-          IpHandleReceivedPacketToUs(sr, ipPacket, length, r_interface);
-        } else {
-            natHandleReceivedInboundIpPacket(sr, ipPacket, length, r_interface,natLookupResult);
-            free (natLookupResult);
-          }
+          natLookupResult = sr_nat_insert_mapping(sr->nat, ipPacket->ip_src,
+                                                 icmpPingHdr->ident, nat_mapping_icmp);
+        }
+        natHandleReceivedOutboundIpPacket(sr, ipPacket, length, r_interface, natLookupResult);
+        free(natLookupResult);
       } else {
-
-          /* For me & is ICMP error message */
           sr_ip_hdr_t *embeddedIpPacket = NULL;
           sr_nat_mapping_t *natLookupResult = NULL;
 
-          if ((icmpHeader->icmp_type == type_dst_unreach)
-             || (icmpHeader->icmp_type ==type_time_exceeded)
+          if ((icmpHeader->icmp_type == icmp_type_desination_unreachable)
+             || (icmpHeader->icmp_type == icmp_type_time_exceeded))
           {
             sr_icmp_t3_hdr_t *unreachableHeader = (sr_icmp_t3_hdr_t *)icmpHeader;
             embeddedIpPacket = (sr_ip_hdr_t *)unreachableHeader->data;
-          } else {
-              fprintf(stderr, "%sDropping unsupported inbound ICMP packet Type:\n", icmpHeader->icmp_type);
-              fprintf(stderr, "%sCode:\n", icmpHeader->icmp_code ); 
-              return;
-            }
+          }
+          else
+          {
+            /* By RFC, no other ICMP types have to support NAT traversal (SHOULDs 
+            * instead of MUSTs). It's not that I'm lazy, it's just that this 
+            * assignment is hard enough as it is. */
+            fprintf(stderr, "\tDropping unsupported outbound ICMP packet Type: %d\n", icmpHeader->icmp_type);
+            fprintf(stderr, "\tCode: %d\n", icmpHeader->icmp_code));
+            return;
+          }
           assert(embeddedIpPacket);
 
           if (embeddedIpPacket->ip_p == ip_protocol_icmp)
           {
-            sr_icmp_t0_hdr_t *embeddedIcmpHeader = (sr_icmp_t0_hdr_t *)icmp_header(embeddedIpPacket);
-
+            sr_icmp_t0_hdr_t * embeddedIcmpHeader = icmp_header(embeddedIpPacket);
             if ((embeddedIcmpHeader->icmp_type == icmp_type_echo_request)
                || (embeddedIcmpHeader->icmp_type == icmp_type_echo_reply))
             {
-              natLookupResult = sr_nat_lookup_external(sr->nat, embeddedIcmpHeader->ident, nat_mapping_icmp);
+              natLookupResult = sr_nat_lookup_internal(sr->nat, embeddedIpPacket->ip_dst,
+                                                      embeddedIcmpHeader->ident, nat_mapping_icmp);
             }
-          /* Otherwise, we will not have a mapping for this ICMP type
-          Either way, echo request and echo reply are the only ICMP packet types that can generate another ICMP packet */
+            /* Otherwise, we will not have a mapping for this ICMP type. */
+            /* Either way, echo request and echo reply are the only ICMP */
+            /* packet types that can generate another ICMP packet. */ 
           }
-          else if (embeddedIpPacket->ip_p == ip_protocol_tcp)
+          else if(embeddedIpPacket->ip_p == ip_protocol_tcp)
           {
-            sr_tcp_hdr_t * embeddedTcpHeader = tcp_header(embeddedIpPacket);
-            natLookupResult = sr_nat_lookup_external(sr->nat, embeddedTcpHeader->sourcePort, nat_mapping_tcp);
+            sr_tcp_hdr_t *embeddedTcpHeader = tcp_header(embeddedIpPacket);
+            natLookupResult = sr_nat_lookup_internal(sr->nat, embeddedIpPacket->ip_dst,
+                                                    embeddedTcpHeader->destinationPort, nat_mapping_tcp);
           } else {
-              /* Unsupported protocol, drop the packet */
               return;
             }
+
+          /* If hit the entry for that packet, modify and send it out */
           if (natLookupResult != NULL)
           {
-            natHandleReceivedInboundIpPacket(sr, ipPacket, length, r_interface, natLookupResult);
+            natHandleReceivedOutboundIpPacket(sr, ipPacket, length, r_interface, natLookupResult); 
             free(natLookupResult);
           }
         }
-    }
+    } else {
+
+        /* Inbound packet */
+        if (!sr_packet_is_for_me(sr, ip_dst)) 
+        {
+          /* Packet no for me */
+          struct sr_rt* lpmatch = longest_prefix_matching(sr, ipPacket->ip_dst);
+
+          if ((sr_get_interface(sr,internalInterfaceName)->ip)
+             != (sr_get_interface(sr,lpmatch->interface)->ip))
+          {
+          ip_forwardpacket(sr, ipPacket, length, receivedInterface->name)
+          } else {
+              printf("%sUnsolicited inbound ICMP packet received attempting to send to internal IP. Dropping.\n");
+            }
+          return;
+        }
+        else if (ip_dst == sr_get_interface(sr, internal_if)->ip)
+        {
+          /* For me but dst is internal interface */
+          printf("%sReceived ICMP packet to our internal interface. Dropping.\n", );
+          return;
+        }
+        else if ((icmpHeader->icmp_type == icmp_type_echo_request)
+                || (icmpHeader->icmp_type == icmp_type_echo_reply))   /* For me & is echo_request/reply */
+        {
+          sr_icmp_t0_hdr_t icmp_ping_hdr = (sr_icmp_t0_hdr_t *)icmpHeader;
+          sr_nat_mapping_t *natLookupResult = sr_nat_lookup_external(sr->nat, icmp_ping_hdr->ident,
+                                                                    nat_mapping_icmp);
+
+          if (natLookupResult == NULL)
+          {
+          
+            /* No mapping exists. Assume ping is actually for us */
+            IpHandleReceivedPacketToUs(sr, ipPacket, length, r_interface);
+          } else {
+              natHandleReceivedInboundIpPacket(sr, ipPacket, length, r_interface,natLookupResult);
+              free (natLookupResult);
+            }
+        } else {
+
+            /* For me & is ICMP error message */
+            sr_ip_hdr_t *embeddedIpPacket = NULL;
+            sr_nat_mapping_t *natLookupResult = NULL;
+
+            if ((icmpHeader->icmp_type == type_dst_unreach)
+               || (icmpHeader->icmp_type ==type_time_exceeded)
+            {
+              sr_icmp_t3_hdr_t *unreachableHeader = (sr_icmp_t3_hdr_t *)icmpHeader;
+              embeddedIpPacket = (sr_ip_hdr_t *)unreachableHeader->data;
+            } else {
+                fprintf(stderr, "%sDropping unsupported inbound ICMP packet Type:\n", icmpHeader->icmp_type);
+                fprintf(stderr, "%sCode:\n", icmpHeader->icmp_code ); 
+                return;
+              }
+            assert(embeddedIpPacket);
+
+            if (embeddedIpPacket->ip_p == ip_protocol_icmp)
+            {
+              sr_icmp_t0_hdr_t *embeddedIcmpHeader = (sr_icmp_t0_hdr_t *)icmp_header(embeddedIpPacket);
+
+              if ((embeddedIcmpHeader->icmp_type == icmp_type_echo_request)
+                 || (embeddedIcmpHeader->icmp_type == icmp_type_echo_reply))
+              {
+                natLookupResult = sr_nat_lookup_external(sr->nat, embeddedIcmpHeader->ident, nat_mapping_icmp);
+              }
+            /* Otherwise, we will not have a mapping for this ICMP type
+            Either way, echo request and echo reply are the only ICMP packet types that can generate another ICMP packet */
+            }
+            else if (embeddedIpPacket->ip_p == ip_protocol_tcp)
+            {
+              sr_tcp_hdr_t * embeddedTcpHeader = tcp_header(embeddedIpPacket);
+              natLookupResult = sr_nat_lookup_external(sr->nat, embeddedTcpHeader->sourcePort, nat_mapping_tcp);
+            } else {
+                /* Unsupported protocol, drop the packet */
+                return;
+              }
+            if (natLookupResult != NULL)
+            {
+              natHandleReceivedInboundIpPacket(sr, ipPacket, length, r_interface, natLookupResult);
+              free(natLookupResult);
+            }
+          }
+      }
 }
 
 
@@ -521,6 +524,8 @@ static void natHandleTcpPacket(sr_instance_t *sr, sr_ip_hdr_t *ipPacket, unsigne
 {
 
     sr_tcp_hdr_t *tcpHeader = tcp_header(ipPacket);
+    uint8_t icmp_type;
+    uint8_t icmp_code;
 
     /* Valid TCP packet */  
     if (!tcp_validpacket(ipPacket))
@@ -659,6 +664,8 @@ static void natHandleTcpPacket(sr_instance_t *sr, sr_ip_hdr_t *ipPacket, unsigne
       {
 
         /* Inbound SYN received */
+        struct sr_rt* lpmatch = longest_prefix_matching(sr, ipPacket->ip_src);
+
         if (natMapping == NULL)
         {
           /* Inbound TCP SYN without mapping, check destination port and send ICMP port unreachable denpending on it */
@@ -666,44 +673,45 @@ static void natHandleTcpPacket(sr_instance_t *sr, sr_ip_hdr_t *ipPacket, unsigne
           {
             sleep(SIMULTANIOUS_OPEN_WAIT_TIME);
           }
-          uint8_t icmp_type = 3;
-          uint8_t icmp_code = 3;
-          sr_icmp_with_payload(sr, ipPacket, icmp_type, icmp_code);
+          icmp_type = 3;
+          icmp_code = 3;
+          sr_icmp_with_payload(sr, ipPacket, lpmatch->interface, icmp_type, icmp_code);
             
           return;
         } else {
 
             /* Potential simultaneous open */
-            pthread_mutex_lock(&(sr->nat->lock));
+            pthread_mutex_lock(&sr->nat->lock);
             
-            sr_nat_mapping_t *sharedNatMapping = natTrustedLookupExternal(sr->nat, tcpHeader->destinationPort,
+            sr_nat_mapping_t *sharedNatMapping = sr_nat_lookup_external(sr->nat, tcpHeader->destinationPort,
                                                                          nat_mapping_tcp);
             assert(sharedNatMapping);
             
-            sr_nat_connection_t *connection = natTrustedFindConnection(sharedNatMapping, ipPacket->ip_src,
-                                                                      tcpHeader->sourcePort);            
+            sr_nat_connection_t *connection = sr_nat_lookup_connection(sharedNatMapping, ipPacket->ip_src,
+                                                                      tcpHeader->sourcePort);
+
             if (connection == NULL)
             {
-               /* Potential simultaneous open. */
-               connection = malloc(sizeof(sr_nat_connection_t));
-               assert(connection);
+              /* Potential simultaneous open */
+              connection = malloc(sizeof(sr_nat_connection_t));
+              assert(connection);
                
-               /* Fill in connection information. */
-               connection->connectionState = nat_conn_inbound_syn_pending;
-               connection->queuedInboundSyn = malloc(length);
-               memcpy(connection->queuedInboundSyn, ipPacket, length);
-               connection->external.ipAddress = ipPacket->ip_src;
-               connection->external.portNumber = tcpHeader->sourcePort;
+              /* Fill in connection information */
+              connection->connectionState = nat_conn_inbound_syn_pending;
+              connection->queuedInboundSyn = malloc(length);
+              memcpy(connection->queuedInboundSyn, ipPacket, length);
+              connection->external.ipAddress = ipPacket->ip_src;
+              connection->external.portNumber = tcpHeader->sourcePort;
                
-               /* Add to the list of connections. */
-               connection->next = sharedNatMapping->conns;
-               sharedNatMapping->conns = connection;
+              /* Add to the list of connections */
+              connection->next = sharedNatMapping->conns;
+              sharedNatMapping->conns = connection;
                
-               return;
+              return;
             }
             else if (connection->connectionState == nat_conn_inbound_syn_pending)
             {
-               return;
+              return;
             }
             else if (connection->connectionState == nat_conn_outbound_syn)
             {
@@ -711,67 +719,63 @@ static void natHandleTcpPacket(sr_instance_t *sr, sr_ip_hdr_t *ipPacket, unsigne
             }
             
             pthread_mutex_unlock(&(sr->nat->lock));
-         }
+          }
       }
       else if (natMapping == NULL)
       {
-         /* TCP packet attempted to traverse the NAT on an unopened */
 
-         IpSendTypeThreeIcmpPacket(sr, icmp_code_destination_port_unreachable, ipPacket);
-         return;
+        /* TCP packet attempted to traverse the NAT on an unopened */
+        icmp_type = 3;
+        icmp_code = 3;
+        sr_icmp_with_payload(sr, ipPacket, lpmatch->interface, icmp_type, icmp_code);
+        
+        return;
       }
-      else if (ntohs(tcpHeader->offset_controlBits) & TCP_FIN_M)
+      else if (ntohs(tcpHeader->offset_controlBits) & TCP_FIN_Mask)
       {
 
-         /* Inbound FIN detected. Put connection into TIME_WAIT state. */
-         pthread_mutex_lock(&(sr->nat->lock));
+        /* Inbound FIN detected. Put connection into TIME_WAIT state */
+        pthread_mutex_lock(&sr->nat->lock);
 
-         sr_nat_mapping_t *sharedNatMapping = natTrustedLookupExternal(sr->nat, tcpHeader->destinationPort,
-                                                                      nat_mapping_tcp);
-         sr_nat_connection_t *associatedConnection = natTrustedFindConnection(sharedNatMapping, ipPacket->ip_src,
-                                                                              tcpHeader->sourcePort);         
-         if (associatedConnection)
-         {
-            associatedConnection->connectionState = nat_conn_time_wait;
-         }
+        sr_nat_mapping_t *sharedNatMapping = sr_nat_lookup_external(sr->nat, tcpHeader->destinationPort,
+                                                                   nat_mapping_tcp);
+        sr_nat_connection_t *associatedConnection = sr_nat_lookup_connection(sharedNatMapping, ipPacket->ip_src,
+                                                                            tcpHeader->sourcePort);         
+        if (associatedConnection)
+        {
+          associatedConnection->connectionState = nat_conn_time_wait;
+        }
          
-         pthread_mutex_unlock(&(sr->nat->lock));
-      }
-      else
-      {
+        pthread_mutex_unlock(&(sr->nat->lock));
+      } else {
 
-         /* Lookup the associated connection */
-         pthread_mutex_lock(&(sr->nat->lock));
+          /* Lookup the associated connection */
+          pthread_mutex_lock(&(sr->nat->lock));
 
-         sr_nat_mapping_t *sharedNatMapping = natTrustedLookupExternal(sr->nat, tcpHeader->destinationPort,
-                                                                      nat_mapping_tcp);
-         sr_nat_connection_t *associatedConnection = natTrustedFindConnection(sharedNatMapping, ipPacket->ip_src,
+          sr_nat_mapping_t *sharedNatMapping = sr_nat_lookup_external((sr->nat, tcpHeader->destinationPort,
+                                                                     nat_mapping_tcp);
+          sr_nat_connection_t *associatedConnection = sr_nat_lookup_connection(sharedNatMapping, ipPacket->ip_src,
                                                                               tcpHeader->sourcePort);         
-         if (associatedConnection == NULL)
-         {
+          if (associatedConnection == NULL)
+          {
 
-            /* Received unsolicited non-SYN packet when no active connection was found. */
+            /* Received unsolicited non-SYN packet when no active connection was found */
             pthread_mutex_unlock(&(sr->nat->lock));
 
             return;
-         }
-         else
-         {
-            pthread_mutex_unlock(&(sr->nat->lock));
-         }
-      }
+          } else {
+              pthread_mutex_unlock(&(sr->nat->lock));
+            }
+        }
       
       natHandleReceivedInboundIpPacket(sr, ipPacket, length, r_interface, natMapping);
       
       if (natMapping) 
-         { 
-            free(natMapping);
-         }
-   }
+      { 
+        free(natMapping);
+      }
+    }
 }
-
-
-
 
 static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_t* packet, unsigned int length, const struct sr_if* const r_interface, sr_nat_mapping_t * natMapping)
 {
