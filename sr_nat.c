@@ -200,7 +200,7 @@ struct sr_nat_mapping *sr_nat_lookup_internal(struct sr_nat *nat,
     pthread_mutex_lock(&nat->lock);
 
     /* Handle lookup, malloc and assign to copy */
-    struct sr_nat_mapping * copy = NULL, * result = NULL;
+    struct sr_nat_mapping *copy = NULL, *result = NULL;
 
     /* Search for mapping */
 
