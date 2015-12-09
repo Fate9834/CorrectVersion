@@ -98,19 +98,52 @@ else if (mappingWalker->type == nat_mapping_tcp)
 	{sr_nat_connection_t* next = connectionIterator->next;
 	 sr_nat_destroy_connection(mappingWalker,connectionIterator);
 	 connectionIterator = next;
-	 }
+	 }else if (((connectionIterator->connectionState == nat_conn_outbound_syn)
+                  || (connectionIterator->connectionState == nat_conn_time_wait))
+                  && (difftime(curtime, connectionIterator->lastAccessed)
+                     > nat->tcpTransitoryTimeout))
+         {   sr_nat_connection_t* next = connectionIterator->next;                  
+             sr_nat_destroy_connection(mappingWalker, connectionIterator);
+             connectionIterator = next;
+         }else if ((connectionIterator->connectionState == nat_conn_inbound_syn_pending)
+                  && (difftime(curtime, connectionIterator->lastAccessed)
+                     > nat->tcpTransitoryTimeout))
+          { sr_nat_connection_t* next = connectionIterator->next;
+            if (connectionIterator->queuedInboundSyn)
+            {
+		sr_icmp_with_payload(sr, packet, interface, icmp_type, icmp_code);
 
+               IpSendTypeThreeIcmpPacket(nat->routerState,
+               icmp_code_destination_port_unreachable,
+               connectionIterator->queuedInboundSyn);
+             }
+               sr_nat_destroy_connection(mappingWalker, connectionIterator);
+                  connectionIterator = next;
+		}else
+               {
+                  connectionIterator = connectionIterator->next;
+               }}
+	if (mappingWalker->conns == NULL)
+            {
+               sr_nat_mapping_t* next = mappingWalker->next;
+               sr_nat_destroy_mapping(nat, mappingWalker);
+               mappingWalker = next;
+            }
+            else
+            {
+               mappingWalker = mappingWalker->next;
+            }
+         }
+         else
+         {
+            mappingWalker = mappingWalker->next;
+         }
+      }
+      pthread_mutex_unlock(&(nat->lock));
+   }
+   return NULL;
+}
 
-
-}
-}
-}
-
-}      
-pthread_mutex_unlock(&(nat->lock));
-}
-return NULL;
-}
 
 /* Get the mapping associated with given external port.
 You must free the returned structure if it is not NULL. */
