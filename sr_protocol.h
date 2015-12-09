@@ -77,7 +77,11 @@
   #endif
 #endif
 #define ICMP_DATA_SIZE 28
-
+#define TCP_OFFSET_Mask (0xF000)
+#define TCP_ACK_Mask (0x0010)
+#define TCP_RST_Mask (0x0004)
+#define TCP_SYN_Mask (0x0002)
+#define TCP_FIN_Mask (0x0001)
 
 /* Structure of a ICMP header
  */

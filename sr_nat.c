@@ -256,14 +256,14 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
 
 void NatHandleRecievedIpPacket(sr_instance_t *sr,
                               sr_ip_hdr_t *ipPacket,unsigned int length,
-                              sr_if_t const *const receivedInterface)
+                              sr_if_t const *const r_interface)
 {
     if (ipPacket->ip_p == ip_protocol_tcp)
     {
-      natHandleTcpPacket(sr, ipPacket, length, receivedInterface);
+      natHandleTcpPacket(sr, ipPacket, length, r_interface);
     } else if (ipPacket->ip_p == ip_protocol_icmp)
     {
-      natHandleIcmpPacket(sr, ipPacket, length, receivedInterface);
+      natHandleIcmpPacket(sr, ipPacket, length, r_interface);
     } else {
         fprintf(stderr, "%sReceived packet of unknown IP protocol type %u. Dropping.\n", ipPacket->ip_p);
       }
@@ -276,11 +276,11 @@ void NatHandleRecievedIpPacket(sr_instance_t *sr,
 * @param sr pointer to simple router structure.
 * @param ipPacket pointer to received IP datagram with an ICMP payload.
 * @param length length of the IP datagram
-* @param receivedInterface interface on which this packet was originally received.
+* @param r_interface interface on which this packet was originally received.
 */
 static void natHandleIcmpPacket(sr_instance_t *sr,
                                sr_ip_hdr_t *ipPacket, unsigned int length,
-                               sr_if_t const *const receivedInterface)
+                               sr_if_t const *const r_interface)
 {
   uint32_t ip_dst = ipPacket->ip_dsr;
   sr_icmp_hdr_t *icmpHeader = icmp_header(ipPacket);
@@ -290,13 +290,13 @@ static void natHandleIcmpPacket(sr_instance_t *sr,
     return;
   }
 
-  if ((sr_get_interface(sr, internalInterfaceName)->ip == receivedInterface->ip)
+  if ((sr_get_interface(sr, internal_if)->ip == r_interface->ip)
       && (sr_packet_is_for_me(sr, ip_dst)))
   {
     /* Packet is for me and it's from inside */
-    IpHandleReceivedPacketToUs(sr, ipPacket, length, receivedInterface);
+    IpHandleReceivedPacketToUs(sr, ipPacket, length, r_interface);
   }
-  else if (sr_get_interface(sr, internal_if)->ip == receivedInterface->ip)
+  else if (sr_get_interface(sr, internal_if)->ip == r_interface->ip)
   {
     /* Outbound packet */
     if ((icmpHeader->icmp_type == icmp_type_echo_request)
@@ -312,7 +312,7 @@ static void natHandleIcmpPacket(sr_instance_t *sr,
         natLookupResult = sr_nat_insert_mapping(sr->nat, ipPacket->ip_src,
                                                icmpPingHdr->ident, nat_mapping_icmp);
       }
-      natHandleReceivedOutboundIpPacket(sr, ipPacket, length, receivedInterface, natLookupResult);
+      natHandleReceivedOutboundIpPacket(sr, ipPacket, length, r_interface, natLookupResult);
       free(natLookupResult);
     } else {
         sr_ip_hdr_t * embeddedIpPacket = NULL;
@@ -359,7 +359,7 @@ static void natHandleIcmpPacket(sr_instance_t *sr,
         /* If hit the entry for that packet, modify and send it out */
         if (natLookupResult != NULL)
         {
-          natHandleReceivedOutboundIpPacket(sr, ipPacket, length, receivedInterface, natLookupResult); 
+          natHandleReceivedOutboundIpPacket(sr, ipPacket, length, r_interface, natLookupResult); 
           free(natLookupResult);
         }
       }
@@ -369,14 +369,14 @@ static void natHandleIcmpPacket(sr_instance_t *sr,
       if (!sr_packet_is_for_me(sr, ip_dst)) 
       {
         /* Packet no for me */
-        ip_forwardpacket(sr, ipPacket, length, receivedInterface->name)
+        ip_forwardpacket(sr, ipPacket, length, r_interface->name)
       } else {
        /* ============================= logic incorrect? ====================================== */
           printf("%sUnsolicited inbound ICMP packet received attempting to send to internal IP. Dropping.\n");
         }
         return;
       }
-      else if (ip_dst == sr_get_interface(sr, internalInterfaceName)->ip)
+      else if (ip_dst == sr_get_interface(sr, internal_if)->ip)
       {
         /* For me but dst is internal interface */
         printf("%sReceived ICMP packet to our internal interface. Dropping.\n", );
@@ -393,9 +393,9 @@ static void natHandleIcmpPacket(sr_instance_t *sr,
         {
         
           /* No mapping exists. Assume ping is actually for us */
-          IpHandleReceivedPacketToUs(sr, ipPacket, length, receivedInterface);
+          IpHandleReceivedPacketToUs(sr, ipPacket, length, r_interface);
         } else {
-            natHandleReceivedInboundIpPacket(sr, ipPacket, length, receivedInterface,natLookupResult);
+            natHandleReceivedInboundIpPacket(sr, ipPacket, length, r_interface,natLookupResult);
             free (natLookupResult);
           }
       } else {
@@ -438,7 +438,7 @@ static void natHandleIcmpPacket(sr_instance_t *sr,
             }
           if (natLookupResult != NULL)
           {
-            natHandleReceivedInboundIpPacket(sr, ipPacket, length, receivedInterface, natLookupResult);
+            natHandleReceivedInboundIpPacket(sr, ipPacket, length, r_interface, natLookupResult);
             free(natLookupResult);
           }
         }
@@ -452,42 +452,47 @@ static void natHandleIcmpPacket(sr_instance_t *sr,
 * @param sr pointer to simple router structure.
 * @param ipPacket pointer to received IP datagram with a TCP payload.
 * @param length length of the IP datagram
-* @param receivedInterface interface on which this packet was originally received.
+* @param r_interface interface on which this packet was originally received.
 */
 
 static void natHandleTcpPacket(sr_instance_t *sr, sr_ip_hdr_t *ipPacket, unsigned int length,
-                              sr_if_t const *const receivedInterface)
+                              sr_if_t const *const r_interface)
 {
-   sr_tcp_hdr_t* tcpHeader = getTcpHeaderFromIpHeader(ipPacket);
-   
-   if (!TcpPerformIntegrityCheck(ipPacket, length))
-   {
+
+    sr_tcp_hdr_t *tcpHeader = tcp_header(ipPacket);
+    /* Valid TCP packet */  
+    if (!tcp_validpacket(ipPacket))
+    {
       return;
-   }
+    }
    
-   if ((sr_get_interface(sr, internalInterfaceName)->ip == receivedInterface->ip) && (IpDestinationIsUs(sr, ipPacket)))
-   {
-      IpHandleReceivedPacketToUs(sr, ipPacket, length, receivedInterface);
-   }
-   else if (sr_get_interface(sr, internalInterfaceName)->ip == receivedInterface->ip)
-   {
+    if ((sr_get_interface(sr, internal_if)->ip == r_interface->ip)
+       && (sr_packet_is_for_me(sr, ipPacket->ip_dst)))
+    {
+      ip_handlepacketforme(sr, ipPacket, r_interface->name);
+    }
+    else if (sr_get_interface(sr, internal_if)->ip == r_interface->ip)
+    {
       sr_nat_mapping_t *natMapping = sr_nat_lookup_internal(sr->nat, ipPacket->ip_src,
                                                             tcpHeader->sourcePort, nat_mapping_tcp);
       
-      if (ntohs(tcpHeader->offset_controlBits) & TCP_SYN_M)
+      if (ntohs(tcpHeader->offset_controlBits) & TCP_SYN_Mask)
       {
          if (natMapping == NULL)
          {
 
             /* Outbound SYN with no existed mapping, create new entry */
             pthread_mutex_lock(&(sr->nat->lock));
+
             sr_nat_connection_t *firstConnection = malloc(sizeof(sr_nat_connection_t));
             sr_nat_mapping_t *sharedNatMapping;
+
             natMapping = malloc(sizeof(sr_nat_mapping_t));
-            assert(firstConnection); assert(natMapping);
+            assert(firstConnection);
+            assert(natMapping);
             
             sharedNatMapping = natTrustedCreateMapping(sr->nat, ipPacket->ip_src,
-               tcpHeader->sourcePort, nat_mapping_tcp);
+                                                      tcpHeader->sourcePort, nat_mapping_tcp);
             assert(sharedNatMapping);
             
             /* Fill in first connection information. */
@@ -574,7 +579,7 @@ static void natHandleTcpPacket(sr_instance_t *sr, sr_ip_hdr_t *ipPacket, unsigne
       }
       
       /* All NAT state updating done by this point. Translate and forward. */
-      natHandleReceivedOutboundIpPacket(sr, ipPacket, length, receivedInterface, natMapping);      
+      natHandleReceivedOutboundIpPacket(sr, ipPacket, length, r_interface, natMapping);      
       if (natMapping) 
          { 
             free(natMapping);
@@ -585,7 +590,7 @@ static void natHandleTcpPacket(sr_instance_t *sr, sr_ip_hdr_t *ipPacket, unsigne
       /* Inbound TCP packet */
       sr_nat_mapping_t * natMapping = sr_nat_lookup_external(sr->nat, tcpHeader->destinationPort,
                                                             nat_mapping_tcp);    
-      if (ntohs(tcpHeader->offset_controlBits) & TCP_SYN_M)
+      if (ntohs(tcpHeader->offset_controlBits) & TCP_SYN_Mask)
       {
 
          /* Inbound SYN received. */
@@ -690,7 +695,7 @@ static void natHandleTcpPacket(sr_instance_t *sr, sr_ip_hdr_t *ipPacket, unsigne
          }
       }
       
-      natHandleReceivedInboundIpPacket(sr, ipPacket, length, receivedInterface, natMapping);
+      natHandleReceivedInboundIpPacket(sr, ipPacket, length, r_interface, natMapping);
       
       if (natMapping) 
          { 
@@ -702,14 +707,14 @@ static void natHandleTcpPacket(sr_instance_t *sr, sr_ip_hdr_t *ipPacket, unsigne
 
 
 
-static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_t* packet, unsigned int length, const struct sr_if* const receivedInterface, sr_nat_mapping_t * natMapping)
+static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_t* packet, unsigned int length, const struct sr_if* const r_interface, sr_nat_mapping_t * natMapping)
 {
  if (packet->ip_p == ip_protocol_icmp)
   { sr_icmp_hdr_t *icmpPacketHeader = icmp_header(packet);\
    if ((icmpPacketHeader->icmp_type == icmp_type_echo_request) || (icmpPacketHeader->icmp_type == icmp_type_echo_reply))
    {
     sr_icmp_t0_hdr_t* rewrittenIcmpHeader = (sr_icmp_t0_hdr_t*) icmpPacketHeader;
-    int icmpLength = length - (packet->ip_hl)*4;
+    int icmpLength = length - packet->ip_hl * 4;
     assert(natMapping);
 
          /* Handle ICMP identify remap and validate. */
@@ -720,11 +725,11 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_
          /* Handle IP address remap and validate. */
     packet->ip_src = sr_get_interface(sr,longest_prefix_matching(sr, packet->ip_dst)->interface)->ip;
 
-    ip_forwardpacket(sr, packet, length, receivedInterface->name);
+    ip_forwardpacket(sr, packet, length, r_interface->name);
   }
   else
   {
-   int icmpLength = length - (packet->ip_h4)*4;
+   int icmpLength = length - packet->ip_hl * 4;
    sr_ip_hdr_t * originalDatagram;
    if (icmpPacketHeader->icmp_type == icmp_type_desination_unreachable)
    {
@@ -765,7 +770,7 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_
          /* Rewrite actual packet header. */
     packet->ip_src = sr_get_interface(sr,longest_prefix_macth(sr, packet->ip_dst)->interface)->ip;
   
-  ip_forwardpacket(sr, packet, length, receivedInterface);
+  ip_forwardpacket(sr, packet, length, r_interface);
 }
 
 
@@ -780,13 +785,13 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_
          IpGetPacketRoute(sr, ntohl(packet->ip_dst))->interface)->ip;
       
       natRecalculateTcpChecksum(packet, length);
-      ip_forwardpacket(sr, packet, length, receivedInterface);
+      ip_forwardpacket(sr, packet, length, r_interface);
 }
 
 }
 
 static void natHandleReceivedInboundIpPacket(struct sr_instance* sr, sr_ip_hdr_t* packet, 
-   unsigned int length, const struct sr_if* const receivedInterface, sr_nat_mapping_t * natMapping)
+   unsigned int length, const struct sr_if* const r_interface, sr_nat_mapping_t * natMapping)
 {
    if (packet->ip_p == ip_protocol_icmp)
    {
@@ -795,7 +800,7 @@ static void natHandleReceivedInboundIpPacket(struct sr_instance* sr, sr_ip_hdr_t
       if ((icmpPacketHeader->icmp_type == icmp_type_echo_request) || (icmpPacketHeader->icmp_type == icmp_type_echo_reply))
       {
          sr_icmp_t0_hdr_t *echoPacketHeader = (sr_icmp_t0_hdr_t *) icmpPacketHeader;
-         int icmpLength = length - (packet->ip_v4)*4;
+         int icmpLength = length - packet->ip_hl * 4;
          
          assert(natMapping);
          
@@ -807,11 +812,11 @@ static void natHandleReceivedInboundIpPacket(struct sr_instance* sr, sr_ip_hdr_t
          /* Handle IP address remap and validate. */
          packet->ip_dst = natMapping->ip_int;
          
-         ip_forwardpacket(sr, packet, length, receivedInterface->name);
+         ip_forwardpacket(sr, packet, length, r_interface->name);
       }
       else 
       {
-         int icmpLength = length - (packet->ip_v4)*4;
+         int icmpLength = length - packet->ip_hl * 4;
          sr_ip_hdr_t * originalDatagram;
          if (icmpPacketHeader->icmp_type == icmp_type_desination_unreachable)
          {
@@ -852,7 +857,7 @@ static void natHandleReceivedInboundIpPacket(struct sr_instance* sr, sr_ip_hdr_t
          /* Rewrite actual packet header. */
          packet->ip_dst = natMapping->ip_int;
          
-         ip_forwardpacket(sr, packet, length, receivedInterface->name);
+         ip_forwardpacket(sr, packet, length, r_interface->name);
       }
    }
    else if (packet->ip_p == ip_protocol_tcp)
@@ -863,7 +868,7 @@ static void natHandleReceivedInboundIpPacket(struct sr_instance* sr, sr_ip_hdr_t
       packet->ip_dst = natMapping->ip_int;
       
       natRecalculateTcpChecksum(packet, length);
-      ip_forwardpacket(sr, packet, length, receivedInterface->name);
+      ip_forwardpacket(sr, packet, length, r_interface->name);
    }
 }
 
@@ -879,7 +884,7 @@ static void natHandleReceivedInboundIpPacket(struct sr_instance* sr, sr_ip_hdr_t
  */
 static void natRecalculateTcpChecksum(sr_ip_hdr_t * tcpPacket, unsigned int length)
 {
-   unsigned int tcpLength = length - (tcpPacket->ip_v4)*4;
+   unsigned int tcpLength = length - tcpPacket->ip_hl * 4;
    uint8_t *packetCopy = malloc(sizeof(sr_tcp_ip_pseudo_hdr_t) + tcpLength);
 
    sr_tcp_ip_pseudo_hdr_t * checksummedHeader = (sr_tcp_ip_pseudo_hdr_t *) packetCopy;
