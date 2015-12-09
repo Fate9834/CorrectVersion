@@ -236,6 +236,7 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
 
     /* Handle insert here, create a mapping, and then return a copy of it */
     struct sr_nat_mapping *mapping = NULL;
+    struct sr_nat_mapping *copy;
 
     mapping = malloc(sizeof(sr_nat_mapping_t));
     mapping->conns = NULL;
@@ -247,21 +248,22 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
 
     if (type == nat_mapping_icmp)
     {
-      printf("%sCreated new ICMP mapping\n", );
+      printf("%sCreated new ICMP mapping\n");
     }
     else if (type == nat_mapping_tcp)
     {
-      printf("%sCreated new TCP mapping\n", );
+      printf("%sCreated new TCP mapping\n");
     }
 
     /* Add mapping to the front of the list */
     mapping->next = nat->mappings;
     nat->mappings = mapping;
 
-    copy = malloc(sizeof(sr_nat_mapping_t);
+    copy = malloc(sizeof(sr_nat_mapping_t));
     memcpy(copy, mapping, sizeof(sr_nat_mapping_t));
 
     pthread_mutex_unlock(&(nat->lock));
+
     return copy;
 }
 
@@ -308,9 +310,9 @@ static sr_nat_connection_t *sr_nat_lookup_connection(sr_nat_mapping_t *natEntry,
 * @param length length of the IP datagram
 * @param r_interface interface on which this packet was originally received.
 */
-static void natHandleIcmpPacket(sr_instance_t *sr,
+static void natHandleIcmpPacket(struct sr_instance *sr,
                                sr_ip_hdr_t *ipPacket, unsigned int length,
-                               sr_if_t const *const r_interface)
+                               struct sr_if const *const r_interface)
 {
     uint32_t ip_dst = ipPacket->ip_dsr;
     sr_icmp_hdr_t *icmpHeader = icmp_header(ipPacket);
@@ -331,8 +333,8 @@ static void natHandleIcmpPacket(sr_instance_t *sr,
     {
 
       /* Outbound packet */
-      if ((icmpHeader->icmp_type == icmp_type_echo_request)
-         || (icmpHeader->icmp_type == icmp_type_echo_reply))
+      if ((icmpHeader->icmp_type == type_echo_request)
+         || (icmpHeader->icmp_type == type_echo_reply))
       {
         sr_icmp_hdr_t *icmpPingHdr = (sr_icmp_hdr_t *)icmpHeader;
         sr_nat_mapping_t *natLookupResult = sr_nat_lookup_internal(sr->nat, ipPacket->ip_src,
@@ -350,8 +352,8 @@ static void natHandleIcmpPacket(sr_instance_t *sr,
           sr_ip_hdr_t *embeddedIpPacket = NULL;
           sr_nat_mapping_t *natLookupResult = NULL;
 
-          if ((icmpHeader->icmp_type == icmp_type_desination_unreachable)
-             || (icmpHeader->icmp_type == icmp_type_time_exceeded))
+          if ((icmpHeader->icmp_type == type_dst_unreach)
+             || (icmpHeader->icmp_type == type_time_exceeded))
           {
             sr_icmp_t3_hdr_t *unreachableHeader = (sr_icmp_t3_hdr_t *)icmpHeader;
             embeddedIpPacket = (sr_ip_hdr_t *)unreachableHeader->data;
@@ -370,8 +372,8 @@ static void natHandleIcmpPacket(sr_instance_t *sr,
           if (embeddedIpPacket->ip_p == ip_protocol_icmp)
           {
             sr_icmp_t0_hdr_t * embeddedIcmpHeader = icmp_header(embeddedIpPacket);
-            if ((embeddedIcmpHeader->icmp_type == icmp_type_echo_request)
-               || (embeddedIcmpHeader->icmp_type == icmp_type_echo_reply))
+            if ((embeddedIcmpHeader->icmp_type == type_echo_request)
+               || (embeddedIcmpHeader->icmp_type == type_echo_reply))
             {
               natLookupResult = sr_nat_lookup_internal(sr->nat, embeddedIpPacket->ip_dst,
                                                       embeddedIcmpHeader->ident, nat_mapping_icmp);
@@ -419,8 +421,8 @@ static void natHandleIcmpPacket(sr_instance_t *sr,
           printf("%sReceived ICMP packet to our internal interface. Dropping.\n", );
           return;
         }
-        else if ((icmpHeader->icmp_type == icmp_type_echo_request)
-                || (icmpHeader->icmp_type == icmp_type_echo_reply))   /* For me & is echo_request/reply */
+        else if ((icmpHeader->icmp_type == type_echo_request)
+                || (icmpHeader->icmp_type == type_echo_reply))   /* For me & is echo_request/reply */
         {
           sr_icmp_t0_hdr_t icmp_ping_hdr = (sr_icmp_t0_hdr_t *)icmpHeader;
           sr_nat_mapping_t *natLookupResult = sr_nat_lookup_external(sr->nat, icmp_ping_hdr->ident,
@@ -457,8 +459,8 @@ static void natHandleIcmpPacket(sr_instance_t *sr,
             {
               sr_icmp_t0_hdr_t *embeddedIcmpHeader = (sr_icmp_t0_hdr_t *)icmp_header(embeddedIpPacket);
 
-              if ((embeddedIcmpHeader->icmp_type == icmp_type_echo_request)
-                 || (embeddedIcmpHeader->icmp_type == icmp_type_echo_reply))
+              if ((embeddedIcmpHeader->icmp_type == type_echo_request)
+                 || (embeddedIcmpHeader->icmp_type == type_echo_reply))
               {
                 natLookupResult = sr_nat_lookup_external(sr->nat, embeddedIcmpHeader->ident, nat_mapping_icmp);
               }
@@ -492,8 +494,8 @@ static void natHandleIcmpPacket(sr_instance_t *sr,
 * @param r_interface interface on which this packet was originally received.
 */
 
-static void natHandleTcpPacket(sr_instance_t *sr, sr_ip_hdr_t *ipPacket, unsigned int length,
-                              sr_if_t const *const r_interface)
+static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, unsigned int length,
+                              struct sr_if const *const r_interface)
 {
 
     sr_tcp_hdr_t *tcpHeader = tcp_header(ipPacket);
@@ -761,7 +763,7 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_
 {
  if (packet->ip_p == ip_protocol_icmp)
   { sr_icmp_hdr_t *icmpPacketHeader = icmp_header(packet);\
-   if ((icmpPacketHeader->icmp_type == icmp_type_echo_request) || (icmpPacketHeader->icmp_type == icmp_type_echo_reply))
+   if ((icmpPacketHeader->icmp_type == type_echo_request) || (icmpPacketHeader->icmp_type == type_echo_reply))
    {
     sr_icmp_t0_hdr_t* rewrittenIcmpHeader = (sr_icmp_t0_hdr_t*) icmpPacketHeader;
     int icmpLength = length - packet->ip_hl * 4;
@@ -781,18 +783,17 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_
   {
    int icmpLength = length - packet->ip_hl * 4;
    sr_ip_hdr_t * originalDatagram;
-   if (icmpPacketHeader->icmp_type == icmp_type_desination_unreachable)
+   if (icmpPacketHeader->icmp_type == type_dst_unreach)
    {
      /* This packet is actually associated with a stream. */
     sr_icmp_t3_hdr_t *unreachablePacketHeader = (sr_icmp_t3_hdr_t *) icmpPacketHeader;
     originalDatagram = (sr_ip_hdr_t*) (unreachablePacketHeader->data);
    }
-  else if (icmpPacketHeader->icmp_type == icmp_type_time_exceeded)
+  else if (icmpPacketHeader->icmp_type == type_time_exceeded)
   {
-    sr_icmp_t11_hdr_t *unreachablePacketHeader = (sr_icmp_t11_hdr_t *) icmpPacketHeader;
-    originalDatagram = (sr_ip_hdr_t*) (unreachablePacketHeader->data);
+    sr_icmp_t3_hdr_t *unreachablePacketHeader = (sr_icmp_t3_hdr_t *) icmpPacketHeader;
+    originalDatagram = (sr_ip_hdr_t *) (unreachablePacketHeader->data);
   }
-  
   assert(natMapping);
   
   if (originalDatagram->ip_p == ip_protocol_tcp)
@@ -801,7 +802,7 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_
     
             /* Perform mapping on embedded payload */
     originalTransportHeader->destinationPort = natMapping->aux_ext;
-    originalDatagram->ip_dst = sr_get_interface(sr,longest_prefix_match(sr,packet->ip_dst)->interface)->ip;
+    originalDatagram->ip_dst = sr_get_interface(sr, longest_prefix_match(sr, packet->ip_dst)->interface)->ip;
   }
   else if (originalDatagram->ip_p == ip_protocol_icmp)
   {
@@ -813,18 +814,14 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_
     originalDatagram->ip_dst = sr_get_interface(sr, longest_prefix_match(sr, packet->ip_dst)->interface)->ip;
   }
   
-         /* Update ICMP checksum */
+  /* Update ICMP checksum */
   icmpPacketHeader->icmp_sum = 0;
   icmpPacketHeader->icmp_sum = cksum(icmpPacketHeader, icmpLength);
   
-         /* Rewrite actual packet header. */
-    packet->ip_src = sr_get_interface(sr,longest_prefix_macth(sr, packet->ip_dst)->interface)->ip;
-  
+  /* Rewrite actual packet header. */
+  packet->ip_src = sr_get_interface(sr, longest_prefix_match(sr, packet->ip_dst)->interface)->ip;
   ip_forwardpacket(sr, packet, length, r_interface);
 }
-
-
-
 }
  else if (packet->ip_p == ip_protocol_tcp)
  {
@@ -832,7 +829,7 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_
       
       tcpHeader->sourcePort = natMapping->aux_ext;
       packet->ip_src = sr_get_interface(sr,
-         IpGetPacketRoute(sr, ntohl(packet->ip_dst))->interface)->ip;
+      IpGetPacketRoute(sr, ntohl(packet->ip_dst))->interface)->ip;
       
       natRecalculateTcpChecksum(packet, length);
       ip_forwardpacket(sr, packet, length, r_interface);
@@ -847,7 +844,7 @@ static void natHandleReceivedInboundIpPacket(struct sr_instance* sr, sr_ip_hdr_t
    {
       sr_icmp_hdr_t *icmpPacketHeader =icmp_header(packet);
       
-      if ((icmpPacketHeader->icmp_type == icmp_type_echo_request) || (icmpPacketHeader->icmp_type == icmp_type_echo_reply))
+      if ((icmpPacketHeader->icmp_type == type_echo_request) || (icmpPacketHeader->icmp_type == type_echo_reply))
       {
          sr_icmp_t0_hdr_t *echoPacketHeader = (sr_icmp_t0_hdr_t *) icmpPacketHeader;
          int icmpLength = length - packet->ip_hl * 4;
@@ -868,13 +865,13 @@ static void natHandleReceivedInboundIpPacket(struct sr_instance* sr, sr_ip_hdr_t
       {
          int icmpLength = length - packet->ip_hl * 4;
          sr_ip_hdr_t * originalDatagram;
-         if (icmpPacketHeader->icmp_type == icmp_type_desination_unreachable)
+         if (icmpPacketHeader->icmp_type == type_dst_unreach)
          {
             /* This packet is actually associated with a stream. */
             sr_icmp_t3_hdr_t *unreachablePacketHeader = (sr_icmp_t3_hdr_t *) icmpPacketHeader;
             originalDatagram = (sr_ip_hdr_t*) (unreachablePacketHeader->data);
          }
-         else if (icmpPacketHeader->icmp_type == icmp_type_time_exceeded)
+         else if (icmpPacketHeader->icmp_type == type_time_exceeded)
          {
             sr_icmp_t3_hdr_t *unreachablePacketHeader = (sr_icmp_t3_hdr_t *) icmpPacketHeader;
             originalDatagram = (sr_ip_hdr_t*) (unreachablePacketHeader->data);
