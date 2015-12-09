@@ -33,10 +33,6 @@ nat_conn_connected, /**< SYNs sent in both directions. Connection established. *
 nat_conn_time_wait /**< One of the endpoints has sent a FIN. */
 } sr_nat_tcp_conn_state_t;
 
-typedef enum
-{
-/* add TCP connection variable members here */
-} sr_nat_tcp_conn_state_t;
 
 typedef struct sr_nat_connection
 {
@@ -54,15 +50,6 @@ typedef struct sr_nat_connection
   struct sr_nat_connection *next;
 } sr_nat_connection_t;
 
-struct sr_nat_connection {
-/* add TCP connection state data members here */
-
-  sr_nat_tcp_conn_state_t connectionState;
-  time_t lastAccessed;
-  sr_ip_hdr_t * queuedInboundSyn;
-
-  struct sr_nat_connection *next;
-};
 
 typedef struct sr_nat_mapping {
 
