@@ -273,9 +273,29 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
     return copy;
 }
 
-void NatHandleRecievedIpPacket(sr_instance_t *sr,
+static sr_nat_connection_t *sr_nat_lookup_connection(sr_nat_mapping_t *natEntry, uint32_t ip_ext, 
+                                                    uint16_t port_ext)
+{
+   sr_nat_connection_t *connectionIterator = natEntry->conns;
+   
+   while (connectionIterator != NULL)
+   {
+      if ((connectionIterator->external.ipAddress == ip_ext) 
+         && (connectionIterator->external.portNumber == port_ext))
+      {
+         connectionIterator->lastAccessed = time(NULL);
+         break;
+      }
+      
+      connectionIterator = connectionIterator->next;
+   }
+
+   return connectionIterator;
+}
+
+void NatHandleRecievedIpPacket(struct sr_instance *sr,
                               sr_ip_hdr_t *ipPacket, unsigned int length,
-                              sr_if_t const *const r_interface)
+                              struct sr_if const *const r_interface)
 {
     if (ipPacket->ip_p == ip_protocol_tcp)
     {
