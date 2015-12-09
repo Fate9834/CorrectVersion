@@ -98,7 +98,7 @@ void sr_print_if_list(struct sr_instance* );
 
 /* -- sr_nat.c -- */
 
-void NatHandleRecievedIpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket,
+void nat_handle_ippacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket,
                               unsigned int length, struct sr_if const *const r_interface);
 
 #endif /* SR_ROUTER_H */

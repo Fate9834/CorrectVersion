@@ -293,7 +293,7 @@ static sr_nat_connection_t *sr_nat_lookup_connection(sr_nat_mapping_t *natEntry,
    return connectionIterator;
 }
 
-void NatHandleRecievedIpPacket(struct sr_instance *sr,
+void nat_handle_ippacket(struct sr_instance *sr,
                               sr_ip_hdr_t *ipPacket, unsigned int length,
                               struct sr_if const *const r_interface)
 {

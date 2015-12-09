@@ -293,7 +293,7 @@ void ip_handlepacket(struct sr_instance *sr,
           ip_forwardpacket(sr, ip_hdr, len, interface);
         }
     } else {
-        NatHandleRecievedIpPacket(sr, ip_hdr, ip_hdr->ip_len, r_interface);
+        nat_handle_ippacket(sr, ip_hdr, ip_hdr->ip_len, r_interface);
     }   
 }
 
