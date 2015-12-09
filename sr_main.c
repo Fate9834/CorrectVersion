@@ -196,11 +196,11 @@ int main(int argc, char **argv)
    /* -- set up routing table from file -- */
    if (cmdArgs.template == NULL)
    {
-      sr.template_name[0] = '\0';
+      sr.template[0] = '\0';
       sr_load_rt_wrap(&sr, cmdArgs.rtable);
    }
    else
-      strncpy(sr.template_name, cmdArgs.template, 30);
+      strncpy(sr.template, cmdArgs.template, 30);
    
    sr.topo_id = cmdArgs.topo;
    strncpy(sr.host, cmdArgs.host, 32);
