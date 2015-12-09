@@ -13,10 +13,10 @@ static const char internal_if[] = "eth1";
 
 static sr_nat_connection_t *sr_nat_lookup_connection(sr_nat_mapping_t *natEntry, uint32_t ip_ext, 
                                                     uint16_t port_ext);
-static void natHandleIcmpPacket(sr_instance_t* sr, sr_ip_hdr_t *ipPacket, unsigned int length,
-                               sr_if_t const *const r_interface);
-static void natHandleTcpPacket(sr_instance_t *sr, sr_ip_hdr_t *ipPacket, unsigned int length,
-                              sr_if_t const *const r_interface);
+static void natHandleIcmpPacket(struct sr_instance* sr, sr_ip_hdr_t *ipPacket, unsigned int length,
+                               struct sr_if const *const r_interface);
+static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, unsigned int length,
+                              struct sr_if const *const r_interface);
 static void natHandleReceivedOutboundIpPacket(struct sr_instance *sr, sr_ip_hdr_t *packet, unsigned int length,
                                              const struct sr_if *const r_interface, sr_nat_mapping_t *natMapping);
 static void natHandleReceivedInboundIpPacket(struct sr_instance *sr, sr_ip_hdr_t *packet, unsigned int length,
@@ -102,9 +102,9 @@ void *sr_nat_timeout(void *nat_ptr)
         } else if (mappingWalker->type == nat_mapping_tcp) {
 
             /* If it is an TCP packet */
-          	sr_nat_connection_t * conn_walker = mappingWalker->conns;
+          	sr_nat_connection_t *conn_walker = mappingWalker->conns;
 
-          	while(onnectionIterator)
+          	while(conn_walker)
           	{
           	  if ((conn_walker->connectionState == nat_conn_connected)
                   && (difftime(curtime, conn_walker->lastAccessed)
@@ -128,7 +128,7 @@ void *sr_nat_timeout(void *nat_ptr)
 
                     if (conn_walker->queuedInboundSyn) {
                   		struct sr_rt *lpmatch = longest_prefix_matching(nat->routerState,
-                                                                     ((conn_walker->queuedInboundSyn)->ip_src))
+                                                                     ((conn_walker->queuedInboundSyn)->ip_src));
                   		sr_icmp_with_payload(nat->routerState, conn_walker->queuedInboundSyn, lpmatch->interface, 3, 3);
                     }
                     sr_nat_destroy_connection(mappingWalker, conn_walker);
@@ -237,7 +237,7 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
     /* Handle insert here, create a mapping, and then return a copy of it */
     struct sr_nat_mapping *mapping = NULL;
 
-    mapping = malloc(sizeof(sr_nat_mapping_t);
+    mapping = malloc(sizeof(sr_nat_mapping_t));
     mapping->conns = NULL;
     mapping->aux_ext = natNextMappingNumber(nat, type);
     mapping->ip_int = ip_int;
