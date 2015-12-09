@@ -32,7 +32,6 @@ typedef enum
   nat_conn_time_wait /**< One of the endpoints has sent a FIN. */
 } sr_nat_tcp_conn_state_t;
 
-
 typedef struct sr_nat_connection
 {
 /* add TCP connection state data members here */
@@ -79,25 +78,24 @@ typedef struct sr_nat {
   pthread_t thread;
 } sr_nat_t;
 
-
 int   sr_nat_init(struct sr_nat *nat);     /* Initializes the nat */
 int   sr_nat_destroy(struct sr_nat *nat);  /* Destroys the nat (free memory) */
 void *sr_nat_timeout(void *nat_ptr);  /* Periodic Timout */
 
 /* Get the mapping associated with given external port.
 You must free the returned structure if it is not NULL. */
-struct sr_nat_mapping *sr_nat_lookup_external(struct sr_nat *nat,
-  uint16_t aux_ext, sr_nat_mapping_type type );
+struct sr_nat_mapping *sr_nat_lookup_external(struct sr_nat *nat, uint16_t aux_ext,
+                                             sr_nat_mapping_type type);
 
 /* Get the mapping associated with given internal (ip, port) pair.
 You must free the returned structure if it is not NULL. */
-struct sr_nat_mapping *sr_nat_lookup_internal(struct sr_nat *nat,
-  uint32_t ip_int, uint16_t aux_int, sr_nat_mapping_type type );
+struct sr_nat_mapping *sr_nat_lookup_internal(struct sr_nat *nat, uint32_t ip_int,
+                                             uint16_t aux_int, sr_nat_mapping_type type);
 
 /* Insert a new mapping into the nat's mapping table.
 You must free the returned structure if it is not NULL. */
-struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
-  uint32_t ip_int, uint16_t aux_int, sr_nat_mapping_type type );
+struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat, uint32_t ip_int,
+                                            uint16_t aux_int, sr_nat_mapping_type type);
 
 
 #endif
