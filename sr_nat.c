@@ -23,14 +23,6 @@ static void natRecalculateTcpChecksum(sr_ip_hdr_t *tcpPacket, unsigned int lengt
 static void sr_nat_destroy_connection(sr_nat_mapping_t *natMapping, sr_nat_connection_t *connection);
 static void sr_nat_destroy_mapping(sr_nat_t *nat, sr_nat_mapping_t *natMapping);
 static uint16_t natNextMappingNumber(sr_nat_t *nat, sr_nat_mapping_type mappingType);
-static sr_nat_mapping_t *natTrustedLookupInternal(sr_nat_t *nat, uint32_t ip_int, uint16_t aux_int,
-                                                 sr_nat_mapping_type type);
-static sr_nat_mapping_t *natTrustedLookupExternal(sr_nat_t * nat, uint16_t aux_ext,
-                                                 sr_nat_mapping_type type);
-static sr_nat_connection_t *natTrustedFindConnection(sr_nat_mapping_t *natEntry, uint32_t ip_ext, 
-                                                     uint16_t port_ext);
-static sr_nat_mapping_t *natTrustedCreateMapping(sr_nat_t *nat, uint32_t ip_int, uint16_t aux_int,
-                                                sr_nat_mapping_type type);
 
 int sr_nat_init(struct sr_nat *nat) 
 { 
@@ -279,6 +271,25 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
     return copy;
 }
 
+static sr_nat_connection_t *sr_nat_lookup_connection(sr_nat_mapping_t *natEntry, uint32_t ip_ext, 
+                                                    uint16_t port_ext)
+{
+   sr_nat_connection_t *connectionIterator = natEntry->conns;
+   
+   while (connectionIterator != NULL)
+   {
+      if ((connectionIterator->external.ipAddress == ip_ext) 
+         && (connectionIterator->external.portNumber == port_ext))
+      {
+         connectionIterator->lastAccessed = time(NULL);
+         break;
+      }
+      
+      connectionIterator = connectionIterator->next;
+   }
+
+   return connectionIterator;
+}
 
 void NatHandleRecievedIpPacket(struct sr_instance *sr,
                               sr_ip_hdr_t *ipPacket, unsigned int length,
@@ -489,6 +500,7 @@ static void natHandleTcpPacket(sr_instance_t *sr, sr_ip_hdr_t *ipPacket, unsigne
 {
 
     sr_tcp_hdr_t *tcpHeader = tcp_header(ipPacket);
+
     /* Valid TCP packet */  
     if (!tcp_validpacket(ipPacket))
     {
@@ -520,22 +532,22 @@ static void natHandleTcpPacket(sr_instance_t *sr, sr_ip_hdr_t *ipPacket, unsigne
             assert(firstConnection);
             assert(natMapping);
             
-            sharedNatMapping = natTrustedCreateMapping(sr->nat, ipPacket->ip_src,
-                                                      tcpHeader->sourcePort, nat_mapping_tcp);
+            sharedNatMapping = sr_nat_insert_mapping(sr->nat, ipPacket->ip_src,
+                                                    tcpHeader->sourcePort, nat_mapping_tcp);
             assert(sharedNatMapping);
             
-            /* Fill in first connection information. */
+            /* Fill in first connection information */
             firstConnection->connectionState = nat_conn_outbound_syn;
             firstConnection->lastAccessed = time(NULL);
             firstConnection->queuedInboundSyn = NULL;
             firstConnection->external.ipAddress = ipPacket->ip_dst;
             firstConnection->external.portNumber = tcpHeader->destinationPort;
             
-            /* Add to the list of connections. */
+            /* Add to the list of connections */
             firstConnection->next = sharedNatMapping->conns;
             sharedNatMapping->conns = firstConnection;
             
-            /* Create a copy so we can keep using it after we unlock the NAT table. */
+            /* Create a copy so we can keep using it after we unlock the NAT table */
             memcpy(natMapping, sharedNatMapping, sizeof(sr_nat_mapping_t));
             
             pthread_mutex_unlock(&(sr->nat->lock));
@@ -544,8 +556,9 @@ static void natHandleTcpPacket(sr_instance_t *sr, sr_ip_hdr_t *ipPacket, unsigne
          {
             /* Outbound SYN with prior mapping. Add the connection if one doesn't exist */
             pthread_mutex_lock(&(sr->nat->lock));
-            sr_nat_mapping_t *sharedNatMapping = natTrustedLookupInternal(sr->nat, ipPacket->ip_src,
-                                                                         tcpHeader->sourcePort, nat_mapping_tcp);
+
+            sr_nat_mapping_t *sharedNatMapping = sr_nat_lookup_internal(sr->nat, ipPacket->ip_src,
+                                                                       tcpHeader->sourcePort, nat_mapping_tcp);
             assert(sharedNatMapping);
             
             sr_nat_connection_t *connection = natTrustedFindConnection(sharedNatMapping,
@@ -1068,5 +1081,3 @@ static uint16_t natNextMappingNumber(sr_nat_t* nat, sr_nat_mapping_type mappingT
 
   return startIndex;
 }
-
-

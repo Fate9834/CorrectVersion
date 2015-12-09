@@ -97,5 +97,11 @@ void sr_set_ether_addr(struct sr_instance* , const unsigned char* );
 void sr_print_if_list(struct sr_instance* );
 
 /* -- sr_nat.c -- */
+<<<<<<< HEAD
 void NatHandleRecievedIpPacket(struct sr_instance* , sr_ip_hdr_t*, unsigned int , struct sr_if const *const);
+=======
+void NatHandleRecievedIpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket,
+                              unsigned int length, struct sr_if const *const r_interface);
+
+>>>>>>> 483999cbf25f9384df610c7ed5091c45a60d4575
 #endif /* SR_ROUTER_H */
