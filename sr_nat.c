@@ -111,11 +111,9 @@ else if (mappingWalker->type == nat_mapping_tcp)
           { sr_nat_connection_t* next = connectionIterator->next;
             if (connectionIterator->queuedInboundSyn)
             {
-		sr_icmp_with_payload(sr, packet, interface, icmp_type, icmp_code);
-
-               IpSendTypeThreeIcmpPacket(nat->routerState,
-               icmp_code_destination_port_unreachable,
-               connectionIterator->queuedInboundSyn);
+		struct sr_rt* lpmatch = longest_prefix_matching(nat->routerState,((connectionIterator->queuedInboundSyn)->ip_src))
+		struct sr_if* interface = sr_get_interface(sr, lpmatch->interface); 
+		sr_icmp_with_payload(nat->routerState, connectionIterator->queuedInboundSyn, interface, 3, 3);
              }
                sr_nat_destroy_connection(mappingWalker, connectionIterator);
                   connectionIterator = next;
