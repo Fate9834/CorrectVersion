@@ -135,9 +135,7 @@ void *sr_nat_timeout(void *nat_ptr)
                     if (conn_walker->queuedInboundSyn) {
                   		struct sr_rt* lpmatch = longest_prefix_matching(nat->routerState,
                                                                      ((conn_walker->queuedInboundSyn)->ip_src))
-                  		struct sr_if* interface = sr_get_interface(sr, lpmatch->interface);
-
-                  		sr_icmp_with_payload(nat->routerState, conn_walker->queuedInboundSyn, interface, 3, 3);
+                  		sr_icmp_with_payload(nat->routerState, conn_walker->queuedInboundSyn, lpmatch->interface, 3, 3);
                     }
                     sr_nat_destroy_connection(mappingWalker, conn_walker);
                     conn_walker = next;
@@ -337,7 +335,7 @@ static void natHandleIcmpPacket(sr_instance_t *sr,
     }
     else if (sr_get_interface(sr, internal_if)->ip == r_interface->ip)
     {
-      
+
       /* Outbound packet */
       if ((icmpHeader->icmp_type == icmp_type_echo_request)
          || (icmpHeader->icmp_type == icmp_type_echo_reply))
@@ -505,6 +503,8 @@ static void natHandleTcpPacket(sr_instance_t *sr, sr_ip_hdr_t *ipPacket, unsigne
 {
 
     sr_tcp_hdr_t *tcpHeader = tcp_header(ipPacket);
+    uint8_t icmp_type;
+    uint8_t icmp_code;
 
     /* Valid TCP packet */  
     if (!tcp_validpacket(ipPacket))
@@ -643,6 +643,8 @@ static void natHandleTcpPacket(sr_instance_t *sr, sr_ip_hdr_t *ipPacket, unsigne
       {
 
         /* Inbound SYN received */
+        struct sr_rt* lpmatch = longest_prefix_matching(sr, ipPacket->ip_src);
+
         if (natMapping == NULL)
         {
           /* Inbound TCP SYN without mapping, check destination port and send ICMP port unreachable denpending on it */
@@ -650,44 +652,45 @@ static void natHandleTcpPacket(sr_instance_t *sr, sr_ip_hdr_t *ipPacket, unsigne
           {
             sleep(SIMULTANIOUS_OPEN_WAIT_TIME);
           }
-          uint8_t icmp_type = 3;
-          uint8_t icmp_code = 3;
-          sr_icmp_with_payload(sr, ipPacket, icmp_type, icmp_code);
+          icmp_type = 3;
+          icmp_code = 3;
+          sr_icmp_with_payload(sr, ipPacket, lpmatch->interface, icmp_type, icmp_code);
             
           return;
         } else {
 
             /* Potential simultaneous open */
-            pthread_mutex_lock(&(sr->nat->lock));
+            pthread_mutex_lock(&sr->nat->lock);
             
-            sr_nat_mapping_t *sharedNatMapping = natTrustedLookupExternal(sr->nat, tcpHeader->destinationPort,
+            sr_nat_mapping_t *sharedNatMapping = sr_nat_lookup_external(sr->nat, tcpHeader->destinationPort,
                                                                          nat_mapping_tcp);
             assert(sharedNatMapping);
             
-            sr_nat_connection_t *connection = natTrustedFindConnection(sharedNatMapping, ipPacket->ip_src,
-                                                                      tcpHeader->sourcePort);            
+            sr_nat_connection_t *connection = sr_nat_lookup_connection(sharedNatMapping, ipPacket->ip_src,
+                                                                      tcpHeader->sourcePort);
+
             if (connection == NULL)
             {
-               /* Potential simultaneous open. */
-               connection = malloc(sizeof(sr_nat_connection_t));
-               assert(connection);
+              /* Potential simultaneous open */
+              connection = malloc(sizeof(sr_nat_connection_t));
+              assert(connection);
                
-               /* Fill in connection information. */
-               connection->connectionState = nat_conn_inbound_syn_pending;
-               connection->queuedInboundSyn = malloc(length);
-               memcpy(connection->queuedInboundSyn, ipPacket, length);
-               connection->external.ipAddress = ipPacket->ip_src;
-               connection->external.portNumber = tcpHeader->sourcePort;
+              /* Fill in connection information */
+              connection->connectionState = nat_conn_inbound_syn_pending;
+              connection->queuedInboundSyn = malloc(length);
+              memcpy(connection->queuedInboundSyn, ipPacket, length);
+              connection->external.ipAddress = ipPacket->ip_src;
+              connection->external.portNumber = tcpHeader->sourcePort;
                
-               /* Add to the list of connections. */
-               connection->next = sharedNatMapping->conns;
-               sharedNatMapping->conns = connection;
+              /* Add to the list of connections */
+              connection->next = sharedNatMapping->conns;
+              sharedNatMapping->conns = connection;
                
-               return;
+              return;
             }
             else if (connection->connectionState == nat_conn_inbound_syn_pending)
             {
-               return;
+              return;
             }
             else if (connection->connectionState == nat_conn_outbound_syn)
             {
@@ -695,67 +698,63 @@ static void natHandleTcpPacket(sr_instance_t *sr, sr_ip_hdr_t *ipPacket, unsigne
             }
             
             pthread_mutex_unlock(&(sr->nat->lock));
-         }
+          }
       }
       else if (natMapping == NULL)
       {
-         /* TCP packet attempted to traverse the NAT on an unopened */
 
-         IpSendTypeThreeIcmpPacket(sr, icmp_code_destination_port_unreachable, ipPacket);
-         return;
+        /* TCP packet attempted to traverse the NAT on an unopened */
+        icmp_type = 3;
+        icmp_code = 3;
+        sr_icmp_with_payload(sr, ipPacket, lpmatch->interface, icmp_type, icmp_code);
+        
+        return;
       }
-      else if (ntohs(tcpHeader->offset_controlBits) & TCP_FIN_M)
+      else if (ntohs(tcpHeader->offset_controlBits) & TCP_FIN_Mask)
       {
 
-         /* Inbound FIN detected. Put connection into TIME_WAIT state. */
-         pthread_mutex_lock(&(sr->nat->lock));
+        /* Inbound FIN detected. Put connection into TIME_WAIT state */
+        pthread_mutex_lock(&sr->nat->lock);
 
-         sr_nat_mapping_t *sharedNatMapping = natTrustedLookupExternal(sr->nat, tcpHeader->destinationPort,
-                                                                      nat_mapping_tcp);
-         sr_nat_connection_t *associatedConnection = natTrustedFindConnection(sharedNatMapping, ipPacket->ip_src,
-                                                                              tcpHeader->sourcePort);         
-         if (associatedConnection)
-         {
-            associatedConnection->connectionState = nat_conn_time_wait;
-         }
+        sr_nat_mapping_t *sharedNatMapping = sr_nat_lookup_external(sr->nat, tcpHeader->destinationPort,
+                                                                   nat_mapping_tcp);
+        sr_nat_connection_t *associatedConnection = sr_nat_lookup_connection(sharedNatMapping, ipPacket->ip_src,
+                                                                            tcpHeader->sourcePort);         
+        if (associatedConnection)
+        {
+          associatedConnection->connectionState = nat_conn_time_wait;
+        }
          
-         pthread_mutex_unlock(&(sr->nat->lock));
-      }
-      else
-      {
+        pthread_mutex_unlock(&(sr->nat->lock));
+      } else {
 
-         /* Lookup the associated connection */
-         pthread_mutex_lock(&(sr->nat->lock));
+          /* Lookup the associated connection */
+          pthread_mutex_lock(&(sr->nat->lock));
 
-         sr_nat_mapping_t *sharedNatMapping = natTrustedLookupExternal(sr->nat, tcpHeader->destinationPort,
-                                                                      nat_mapping_tcp);
-         sr_nat_connection_t *associatedConnection = natTrustedFindConnection(sharedNatMapping, ipPacket->ip_src,
+          sr_nat_mapping_t *sharedNatMapping = sr_nat_lookup_external((sr->nat, tcpHeader->destinationPort,
+                                                                     nat_mapping_tcp);
+          sr_nat_connection_t *associatedConnection = sr_nat_lookup_connection(sharedNatMapping, ipPacket->ip_src,
                                                                               tcpHeader->sourcePort);         
-         if (associatedConnection == NULL)
-         {
+          if (associatedConnection == NULL)
+          {
 
-            /* Received unsolicited non-SYN packet when no active connection was found. */
+            /* Received unsolicited non-SYN packet when no active connection was found */
             pthread_mutex_unlock(&(sr->nat->lock));
 
             return;
-         }
-         else
-         {
-            pthread_mutex_unlock(&(sr->nat->lock));
-         }
-      }
+          } else {
+              pthread_mutex_unlock(&(sr->nat->lock));
+            }
+        }
       
       natHandleReceivedInboundIpPacket(sr, ipPacket, length, r_interface, natMapping);
       
       if (natMapping) 
-         { 
-            free(natMapping);
-         }
-   }
+      { 
+        free(natMapping);
+      }
+    }
 }
-
-
-
 
 static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_t* packet, unsigned int length, const struct sr_if* const r_interface, sr_nat_mapping_t * natMapping)
 {
