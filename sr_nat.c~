@@ -53,7 +53,7 @@ pthread_mutexattr_destroy(&(nat->attr));
 
 }
 
-void *sr_nat_timeout(void *nat_ptr) {  /* Periodic Timout handling */
+void *sr_nat_timeout(void *nat_ptr) {  /* Periodic Timeout handling */
 struct sr_nat *nat = (struct sr_nat *)nat_ptr;
 while (1) {
   sleep(1.0);
@@ -76,12 +76,6 @@ while (1) {
         sr_nat_mapping_t* next = mappingWalker->next;
 
 /***************Print out information of the destroyed mapping***************************************/
-/* fprintf(stderr, "ICMP mapping %u.%u.%u.%u:%u <-> %u timed out.\n",
-(ntohl(mappingWalker->ip_int) >> 24) & 0xFF,
-(ntohl(mappingWalker->ip_int) >> 16) & 0xFF,
-(ntohl(mappingWalker->ip_int) >> 8) & 0xFF,
-ntohl(mappingWalker->ip_int) & 0xFF,
-ntohs(mappingWalker->aux_int), ntohs(mappingWalker->aux_ext));*/
 
 sr_nat_destroy_mapping(nat, mappingWalker);
 mappingWalker = next;
@@ -95,7 +89,21 @@ else
 /*************** If it is an TCP packet******************/
 else if (mappingWalker->type == nat_mapping_tcp)
 {
+	sr_nat_connection_t * connectionIterator = mappingWalker->conns;
+	while(onnectionIterator)
+	{
+	  if ((connectionIterator->connectionState == nat_conn_connected)
+                  && (difftime(curtime, connectionIterator->lastAccessed)
+                     > nat->tcpEstablishedTimeout))
+	{sr_nat_connection_t* next = connectionIterator->next;
+	 sr_nat_destroy_connection(mappingWalker,connectionIterator);
+	 connectionIterator = next;
+	 }
 
+
+
+}
+}
 }
 
 }      
@@ -447,7 +455,7 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_
          /* Handle IP address remap and validate. */
     packet->ip_src = sr_get_interface(sr,longest_prefix_matching(sr, packet->ip_dst)->interface)->ip;
 
-    IpForwardIpPacket(sr, packet, length, receivedInterface);
+    ip_forwardpacket(sr, packet, length, receivedInterface->name);
   }
   else
   {
@@ -492,7 +500,7 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_
          /* Rewrite actual packet header. */
     packet->ip_src = sr_get_interface(sr,longest_prefix_macth(sr, packet->ip_dst)->interface)->ip;
   
-  IpForwardIpPacket(sr, packet, length, receivedInterface);
+  ip_forwardpacket(sr, packet, length, receivedInterface);
 }
 
 
@@ -507,7 +515,7 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_
          IpGetPacketRoute(sr, ntohl(packet->ip_dst))->interface)->ip;
       
       natRecalculateTcpChecksum(packet, length);
-      IpForwardIpPacket(sr, packet, length, receivedInterface);
+      ip_forwardpacket(sr, packet, length, receivedInterface);
 }
 
 }
@@ -534,7 +542,7 @@ static void natHandleReceivedInboundIpPacket(struct sr_instance* sr, sr_ip_hdr_t
          /* Handle IP address remap and validate. */
          packet->ip_dst = natMapping->ip_int;
          
-         IpForwardIpPacket(sr, packet, length, receivedInterface);
+         ip_forwardpacket(sr, packet, length, receivedInterface->name);
       }
       else 
       {
@@ -579,7 +587,7 @@ static void natHandleReceivedInboundIpPacket(struct sr_instance* sr, sr_ip_hdr_t
          /* Rewrite actual packet header. */
          packet->ip_dst = natMapping->ip_int;
          
-         IpForwardIpPacket(sr, packet, length, receivedInterface);
+         ip_forwardpacket(sr, packet, length, receivedInterface->name);
       }
    }
    else if (packet->ip_p == ip_protocol_tcp)
@@ -590,7 +598,7 @@ static void natHandleReceivedInboundIpPacket(struct sr_instance* sr, sr_ip_hdr_t
       packet->ip_dst = natMapping->ip_int;
       
       natRecalculateTcpChecksum(packet, length);
-      IpForwardIpPacket(sr, packet, length, receivedInterface);
+      ip_forwardpacket(sr, packet, length, receivedInterface->name);
    }
 }
 
@@ -630,7 +638,40 @@ static void natRecalculateTcpChecksum(sr_ip_hdr_t * tcpPacket, unsigned int leng
 }
 
 
-
+static void sr_nat_destroy_connection (sr_nat_mapping_t* natMapping, sr_nat_connection * connection)
+{
+sr_nat_connection_t *req, *prev = NULL, *next = NULL;
+   
+   if (natMapping && connection)
+   {
+      for (req = natMapping->conns; req != NULL; req = req->next)
+      {
+         if (req == connection)
+         {
+            if (prev)
+            {
+               next = req->next;
+               prev->next = next;
+            }
+            else
+            {
+               next = req->next;
+               natMapping->conns = next;
+            }
+            
+            break;
+         }
+         prev = req;
+      }
+      
+      if(connection->queuedInboundSyn)
+      {
+         free(connection->queuedInboundSyn);
+      }
+      
+      free(connection);
+   }
+}
 
 
 
