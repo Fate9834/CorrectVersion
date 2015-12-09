@@ -275,6 +275,7 @@ void ip_handlepacket(struct sr_instance *sr,
     printf("** Recieved IP packet\n");
 
     struct sr_ip_hdr *ip_hdr = ip_header(packet);
+    struct sr_if *r_interface = sr_get_interface(sr, interface);
 
     if (!ip_validpacket(packet, len))
       return;
@@ -291,7 +292,7 @@ void ip_handlepacket(struct sr_instance *sr,
           ip_forwardpacket(sr, ip_hdr, len, interface);
         }
     } else {
-        /* NatHandleRecievedIpPacket(sr, packet, length, interface) */
+        NatHandleRecievedIpPacket(sr, ip_hdr, ip_hdr->ip_len, r_interface);
     }   
 }
 

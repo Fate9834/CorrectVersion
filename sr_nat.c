@@ -255,7 +255,7 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
 
 
 void NatHandleRecievedIpPacket(sr_instance_t *sr,
-                              sr_ip_hdr_t *ipPacket,unsigned int length,
+                              sr_ip_hdr_t *ipPacket, unsigned int length,
                               sr_if_t const *const r_interface)
 {
     if (ipPacket->ip_p == ip_protocol_tcp)
