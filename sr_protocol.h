@@ -243,6 +243,27 @@ struct sr_arp_hdr
 } __attribute__ ((packed)) ;
 typedef struct sr_arp_hdr sr_arp_hdr_t;
 
+typedef struct __attribute__((packed))
+{
+   uint16_t sourcePort;           /* Source port number */
+   uint16_t destinationPort;      /* Destination port number */
+   uint32_t sequenceNumber;       /* Sequence number of the first data in this segment (except when SYN is present) */
+   uint32_t acknowledgmentNumber; /* Field contains the value of the next sequence number the sender of the segment is expecting to receive */
+   uint16_t offset_controlBits;
+   uint16_t window;               
+   uint16_t checksum;
+   uint16_t urgentPointer; /* Current value of the urgent pointer as a positive offset from the sequence number in this segment */
+} sr_tcp_hdr_t;
+
+typedef struct __attribute__((packed))
+{
+   uint32_t sourceAddress;      /* Source address of the IP datagram */
+   uint32_t destinationAddress; /* Destination address of the IP datagram */
+   uint8_t zeros;               /* A byte of 0 */
+   uint8_t protocol;            /* IP Protocol field (should be ip_protocol_tcp) */
+   uint16_t tcpLength;          /* Length of the TCP packet */
+} sr_tcp_ip_pseudo_hdr_t;
+
 #define sr_IFACE_NAMELEN 32
 
 #endif /* -- SR_PROTOCOL_H -- */

@@ -75,15 +75,16 @@ void sr_add_ethernet_send(struct sr_instance *sr, uint8_t *packet,
         unsigned int len, uint32_t dip, enum sr_ethertype type); 
 void build_arp_reply(struct sr_instance *, struct sr_arp_hdr *arp_hdr, struct sr_if *r_iface);
 void ip_handlepacket(struct sr_instance*, uint8_t *, unsigned int, char *);
-void ip_forwardpacket(struct sr_instance *sr, uint8_t *packet, unsigned int len, char *interface);
+void ip_handlepacketforme(struct sr_instance *sr, sr_ip_hdr_t *ip_hdr, char *interface);
+void ip_forwardpacket(struct sr_instance *sr, sr_ip_hdr_t *ip_hdr, unsigned int len, char *interface);
 void sr_handle_arpreq(struct sr_instance *sr, struct sr_arpreq *req);
 int arp_validpacket(uint8_t *packet, unsigned int len);
 int ip_validpacket(uint8_t *packet, unsigned int len);
 int icmp_validpacket(struct sr_ip_hdr *ip_hdr);
 int sr_packet_is_for_me(struct sr_instance* sr, uint32_t ip_dst);
 void arp_boardcast(struct sr_instance* sr, struct sr_arpreq *req);
-struct sr_rt* longest_prefix_matching(struct sr_instance *sr, uint32_t IP_dest);
-void sr_icmp_with_payload(struct sr_instance *sr, uint8_t *packet, char *interface, uint8_t icmp_type, uint8_t icmp_code);
+struct sr_rt* longest_prefix_matching(struct sr_instance *sr, uint32_t ip_dest);
+void sr_icmp_with_payload(struct sr_instance *sr, sr_ip_hdr_t *ip_hdr, char *interface, uint8_t icmp_type, uint8_t icmp_code);
 struct sr_icmp_t3_hdr icmp_send_error_packet(struct sr_ip_hdr *ip_hdr, int code_num);
 
 
