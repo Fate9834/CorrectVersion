@@ -24,7 +24,7 @@ struct sr_icmp_hdr *icmp_header(struct sr_ip_hdr *ip_hdr){
   return (struct sr_icmp_hdr *)icmp_header;
 }
 
-struct sr_icmp_hdr *tcp_header(struct sr_ip_hdr *ip_hdr){
+struct sr_tcp_hdr *tcp_header(struct sr_ip_hdr *ip_hdr){
   
   uint8_t *tcp_header;
   

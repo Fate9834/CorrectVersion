@@ -102,7 +102,7 @@ struct sr_icmp_t0_hdr
    uint16_t seq_num; /**< Echo request/reply sequence number */
    uint8_t data[1]; /**< Variable length data sent with request/reply */
 }__attribute__ ((packed)) ;
-typedef struct sr_icmp_t0_hdr_t;
+typedef struct sr_icmp_t0_hdr  sr_icmp_t0_hdr_t;
 
 /* Structure of a type3 ICMP header
  */
