@@ -4,6 +4,11 @@
 #include "sr_nat.h"
 #include <unistd.h>
 
+#include "sr_nat.h"
+#include "sr_protocol.h"
+#include "sr_router.h"
+#include "sr_utils.h"
+
 static const char internal_if[] = "eth1";
 
 int sr_nat_init(struct sr_nat *nat) 
