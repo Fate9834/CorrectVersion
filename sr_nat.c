@@ -11,31 +11,26 @@
 
 static const char internal_if[] = "eth1";
 
-static void sr_nat_destroy_mapping(sr_nat_t* nat, sr_nat_mapping_t* natMapping);
-static void sr_nat_destroy_connection(sr_nat_mapping_t* natMapping, sr_nat_connection_t* connection);
-
-static uint16_t natNextMappingNumber(sr_nat_t* nat, sr_nat_mapping_type mappingType);
-
-static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_t* packet, 
-   unsigned int length, const struct sr_if* const receivedInterface, sr_nat_mapping_t * natMapping);
-static void natHandleReceivedInboundIpPacket(struct sr_instance* sr, sr_ip_hdr_t* packet, 
-   unsigned int length, const struct sr_if* const receivedInterface, sr_nat_mapping_t * natMapping);
-
-static void natHandleTcpPacket(sr_instance_t* sr, sr_ip_hdr_t* ipPacket, unsigned int length,
-   sr_if_t const * const receivedInterface);
-static void natHandleIcmpPacket(sr_instance_t* sr, sr_ip_hdr_t* ipPacket, unsigned int length,
-   sr_if_t const * const receivedInterface);
-
-static sr_nat_mapping_t * natTrustedLookupInternal(sr_nat_t *nat, uint32_t ip_int, uint16_t aux_int,
-   sr_nat_mapping_type type);
-static sr_nat_mapping_t * natTrustedLookupExternal(sr_nat_t * nat, uint16_t aux_ext,
-   sr_nat_mapping_type type);
-static sr_nat_mapping_t * natTrustedCreateMapping(sr_nat_t *nat, uint32_t ip_int, uint16_t aux_int,
-   sr_nat_mapping_type type);
-static sr_nat_connection_t * natTrustedFindConnection(sr_nat_mapping_t *natEntry, uint32_t ip_ext, 
-   uint16_t port_ext);
-
-static void natRecalculateTcpChecksum(sr_ip_hdr_t * tcpPacket, unsigned int length);
+static void sr_nat_destroy_mapping(sr_nat_t *nat, sr_nat_mapping_t *natMapping);
+static void sr_nat_destroy_connection(sr_nat_mapping_t *natMapping, sr_nat_connection_t *connection);
+static uint16_t natNextMappingNumber(sr_nat_t *nat, sr_nat_mapping_type mappingType);
+static void natHandleReceivedOutboundIpPacket(struct sr_instance *sr, sr_ip_hdr_t *packet, unsigned int length,
+                                             const struct sr_if *const r_interface, sr_nat_mapping_t *natMapping);
+static void natHandleReceivedInboundIpPacket(struct sr_instance *sr, sr_ip_hdr_t *packet, unsigned int length,
+                                            const struct sr_if *const r_interface, sr_nat_mapping_t *natMapping);
+static void natHandleTcpPacket(sr_instance_t *sr, sr_ip_hdr_t *ipPacket, unsigned int length,
+                              sr_if_t const *const r_interface);
+static void natHandleIcmpPacket(sr_instance_t* sr, sr_ip_hdr_t *ipPacket, unsigned int length,
+                               sr_if_t const *const r_interface);
+static sr_nat_mapping_t *natTrustedLookupInternal(sr_nat_t *nat, uint32_t ip_int, uint16_t aux_int,
+                                                 sr_nat_mapping_type type);
+static sr_nat_mapping_t *natTrustedLookupExternal(sr_nat_t * nat, uint16_t aux_ext,
+                                                 sr_nat_mapping_type type);
+static sr_nat_mapping_t *natTrustedCreateMapping(sr_nat_t *nat, uint32_t ip_int, uint16_t aux_int,
+                                                 sr_nat_mapping_type type);
+static sr_nat_connection_t *natTrustedFindConnection(sr_nat_mapping_t *natEntry, uint32_t ip_ext, 
+                                                     uint16_t port_ext);
+static void natRecalculateTcpChecksum(sr_ip_hdr_t *tcpPacket, unsigned int length);
 
 
 int sr_nat_init(struct sr_nat *nat) 
@@ -405,7 +400,7 @@ static void natHandleIcmpPacket(sr_instance_t *sr,
 
         if ((sr_get_interface(sr,internalInterfaceName)->ip) != (sr_get_interface(sr,lpmatch->interface)->ip))
         {
-        ip_forwardpacket(sr, ipPacket, length, receivedInterface->name)
+        ip_forwardpacket(sr, ipPacket, length, r_interface->name)
         } else {
             printf("%sUnsolicited inbound ICMP packet received attempting to send to internal IP. Dropping.\n");
           }
