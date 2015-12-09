@@ -15,6 +15,8 @@
 
 #include "sr_protocol.h"
 #include "sr_arpcache.h"
+#include "sr_nat.h"
+#include "sr_rt.h"
 
 /* we dont like this debug , but what to do for varargs ? */
 #ifdef _DEBUG_
@@ -97,4 +99,5 @@ void sr_print_if_list(struct sr_instance* );
 /* -- sr_nat.c -- */
 void NatHandleRecievedIpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket,
                               unsigned int length, struct sr_if const *const r_interface);
+
 #endif /* SR_ROUTER_H */
