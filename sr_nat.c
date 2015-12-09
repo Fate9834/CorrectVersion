@@ -369,8 +369,11 @@ static void natHandleIcmpPacket(sr_instance_t *sr,
       if (!sr_packet_is_for_me(sr, ip_dst)) 
       {
         /* Packet no for me */
+        struct sr_rt* lpmatch = longest_prefix_matching(sr, ipPacket->ip_dst);
+        if ((sr_get_interface(sr,internalInterfaceName)->ip)!= (sr_get_interface(sr,lpmatch->interface)->ip))
+        {
         ip_forwardpacket(sr, ipPacket, length, receivedInterface->name)
-      } else {
+        }else {
        /* ============================= logic incorrect? ====================================== */
           printf("%sUnsolicited inbound ICMP packet received attempting to send to internal IP. Dropping.\n");
         }
