@@ -679,7 +679,14 @@ static void natHandleTcpPacket(sr_instance_t *sr, sr_ip_hdr_t *ipPacket, unsigne
               /* Add to the list of connections */
               connection->next = sharedNatMapping->conns;
               sharedNatMapping->conns = connection;
-               
+              
+              natHandleReceivedInboundIpPacket(sr, ipPacket, length, r_interface, natMapping);
+      
+              if (natMapping) 
+              { 
+                free(natMapping);
+              }
+              
               return;
             }
             else if (connection->connectionState == nat_conn_inbound_syn_pending)
