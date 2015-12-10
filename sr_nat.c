@@ -601,12 +601,8 @@ static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, un
                                                                        tcpHeader->sourcePort, nat_mapping_tcp);
             assert(sharedNatMapping);
             
-<<<<<<< HEAD
-            sr_nat_connection_t *connection = natTrustedLookupInternal(sharedNatMapping, ipPacket->ip_dst, tcpHeader->destinationPort);  
-=======
             sr_nat_connection_t *connection = natTrustedFindConnection(sharedNatMapping,
                                                                       ipPacket->ip_dst, tcpHeader->destinationPort);  
->>>>>>> 32f2d89369836ffdf59d717e0f646cf269a95970
 
             if (connection == NULL)
             {
@@ -1130,11 +1126,6 @@ static uint16_t natNextMappingNumber(sr_nat_t* nat, sr_nat_mapping_type mappingT
   return startIndex;
 }
 
-<<<<<<< HEAD
-
-static sr_nat_connection_t * natTrustedFindConnection(sr_nat_mapping_t *natEntry, uint32_t ip_ext, 
-   uint16_t port_ext)
-=======
 static sr_nat_mapping_t *natTrustedLookupExternal(sr_nat_t *nat, uint16_t aux_ext,
                                                  sr_nat_mapping_type type)
 {
@@ -1151,7 +1142,6 @@ static sr_nat_mapping_t *natTrustedLookupExternal(sr_nat_t *nat, uint16_t aux_ex
 
 static sr_nat_mapping_t *natTrustedLookupInternal(sr_nat_t *nat, uint32_t ip_int, uint16_t aux_int,
                                                  sr_nat_mapping_type type)
->>>>>>> 32f2d89369836ffdf59d717e0f646cf269a95970
 {
    sr_nat_mapping_t *mappingWalker;
       
@@ -1204,5 +1194,6 @@ static sr_nat_connection_t *natTrustedFindConnection(sr_nat_mapping_t *natEntry,
       
       conn_walker = conn_walker->next;
    }
+   
    return conn_walker;
 }
