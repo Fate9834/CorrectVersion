@@ -33,6 +33,12 @@
 #define ICMP_COPY_DATAGRAM_LEN 8
 #define ICMP_IP_HDR_LEN_BYTE 20
 #define DEFAULT_TTL 100
+
+static inline bool natEnabled(sr_instance_t *sr)
+{
+   return (sr->nat != NULL);
+}
+
 /*---------------------------------------------------------------------
  * Method: sr_init(void)
  * Scope:  Global
@@ -281,7 +287,7 @@ void ip_handlepacket(struct sr_instance *sr,
       return;
 
     /* Check whether NAT is enabled */
-    if (sr->nat == NULL){
+    if (!natEnabled(sr){
       
       /* Check interface IP to determine whether this IP packet is for me */
       if (sr_packet_is_for_me(sr, ip_hdr->ip_dst)) {
@@ -700,7 +706,7 @@ void sr_icmp_with_payload(struct sr_instance *sr,
     uint32_t dst;
 
     if (icmp_type == 11 && icmp_code == 0){
-      if (sr->nat != NULL){
+      if (natEnabled(sr)){
         NatUndoPacketMapping(sr, ip_hdr, ip_hdr->ip_len, r_interface);
       }
     }
