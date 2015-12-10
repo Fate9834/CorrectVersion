@@ -402,7 +402,7 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
     uint32_t ip_dst = ipPacket->ip_dst;
     sr_icmp_hdr_t *icmpHeader = icmp_header(ipPacket);
 
-    if (!icmp_validpacket(ipPacket));
+    if (!icmp_validpacket(ipPacket))
     {
       return;
     }
@@ -418,8 +418,8 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
     {
 
       /* Outbound packet */
-      if ((icmpHeader->icmp_type == type_echo_request)
-         || (icmpHeader->icmp_type == type_echo_reply))
+      if ((ntohs(icmpHeader->icmp_type) == type_echo_request)
+         || (ntohs(icmpHeader->icmp_type) == type_echo_reply))
       {
         sr_icmp_t0_hdr_t *icmpPingHdr = (sr_icmp_t0_hdr_t *)icmpHeader;
         sr_nat_mapping_t *natLookupResult = sr_nat_lookup_internal(sr->nat, ipPacket->ip_src,
@@ -437,8 +437,8 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
           sr_ip_hdr_t *embeddedIpPacket = NULL;
           sr_nat_mapping_t *natLookupResult = NULL;
 
-          if ((icmpHeader->icmp_type == type_dst_unreach)
-             || (icmpHeader->icmp_type == type_time_exceeded))
+          if ((ntohs(icmpHeader->icmp_type) == type_dst_unreach)
+             || (ntohs(icmpHeader->icmp_type) == type_time_exceeded))
           {
             sr_icmp_t3_hdr_t *unreachableHeader = (sr_icmp_t3_hdr_t *)icmpHeader;
             embeddedIpPacket = (sr_ip_hdr_t *)unreachableHeader->data;
@@ -452,8 +452,8 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
           if (embeddedIpPacket->ip_p == ip_protocol_icmp)
           {
             sr_icmp_t0_hdr_t *embeddedIcmpHeader = (sr_icmp_t0_hdr_t *) (icmp_header(embeddedIpPacket));
-            if ((embeddedIcmpHeader->icmp_type == type_echo_request)
-               || (embeddedIcmpHeader->icmp_type == type_echo_reply))
+            if ((ntohs(embeddedIcmpHeader->icmp_type) == type_echo_request)
+               || (ntohs(embeddedIcmpHeader->icmp_type) == type_echo_reply))
             {
               natLookupResult = sr_nat_lookup_internal(sr->nat, embeddedIpPacket->ip_dst,
                                                       embeddedIcmpHeader->ident, nat_mapping_icmp);
@@ -501,8 +501,8 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
           printf("** Received ICMP packet to our internal interface. Dropping.\n");
           return;
         }
-        else if ((icmpHeader->icmp_type == type_echo_request)
-                || (icmpHeader->icmp_type == type_echo_reply))   /* For me & is echo_request/reply */
+        else if ((ntohs(icmpHeader->icmp_type) == type_echo_request)
+                || (ntohs(icmpHeader->icmp_type) == type_echo_reply))   /* For me & is echo_request/reply */
         {
           sr_icmp_t0_hdr_t *icmp_ping_hdr = (sr_icmp_t0_hdr_t *)icmpHeader;
           sr_nat_mapping_t *natLookupResult = sr_nat_lookup_external(sr->nat, icmp_ping_hdr->ident,
@@ -523,8 +523,8 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
             sr_ip_hdr_t *embeddedIpPacket = NULL;
             sr_nat_mapping_t *natLookupResult = NULL;
 
-            if ((icmpHeader->icmp_type == type_dst_unreach)
-               || (icmpHeader->icmp_type ==type_time_exceeded))
+            if ((ntohs(icmpHeader->icmp_type) == type_dst_unreach)
+               || (ntohs(icmpHeader->icmp_type) ==type_time_exceeded))
             {
               sr_icmp_t3_hdr_t *unreachableHeader = (sr_icmp_t3_hdr_t *)icmpHeader;
               embeddedIpPacket = (sr_ip_hdr_t *)unreachableHeader->data;
@@ -537,8 +537,8 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
             {
               sr_icmp_t0_hdr_t *embeddedIcmpHeader = (sr_icmp_t0_hdr_t *)icmp_header(embeddedIpPacket);
 
-              if ((embeddedIcmpHeader->icmp_type == type_echo_request)
-                 || (embeddedIcmpHeader->icmp_type == type_echo_reply))
+              if ((ntohs(embeddedIcmpHeader->icmp_type) == type_echo_request)
+                 || (ntohs(embeddedIcmpHeader->icmp_type) == type_echo_reply))
               {
                 natLookupResult = sr_nat_lookup_external(sr->nat, embeddedIcmpHeader->ident, nat_mapping_icmp);
               }
@@ -842,7 +842,7 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance *sr, sr_ip_hdr_
   { 
     sr_icmp_hdr_t *icmpPacketHeader = icmp_header(packet);
 
-    if ((icmpPacketHeader->icmp_type == type_echo_request) || (icmpPacketHeader->icmp_type == type_echo_reply))
+    if ((ntohs(icmpPacketHeader->icmp_type) == type_echo_request) || (ntohs(icmpPacketHeader->icmp_type) == type_echo_reply))
     {
       sr_icmp_t0_hdr_t* rewrittenIcmpHeader = (sr_icmp_t0_hdr_t*) icmpPacketHeader;
       int icmpLength = length - packet->ip_hl * 4;
@@ -868,7 +868,7 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance *sr, sr_ip_hdr_
     sr_icmp_t3_hdr_t *unreachablePacketHeader = (sr_icmp_t3_hdr_t *) icmpPacketHeader;
     originalDatagram = (sr_ip_hdr_t*) (unreachablePacketHeader->data);
    }
-  else if (icmpPacketHeader->icmp_type == type_time_exceeded)
+  else if (ntohs(icmpPacketHeader->icmp_type) == type_time_exceeded)
   {
     sr_icmp_t3_hdr_t *unreachablePacketHeader = (sr_icmp_t3_hdr_t *) icmpPacketHeader;
     originalDatagram = (sr_ip_hdr_t *) (unreachablePacketHeader->data);
@@ -920,7 +920,7 @@ static void natHandleReceivedInboundIpPacket(struct sr_instance *sr, sr_ip_hdr_t
    {
       sr_icmp_hdr_t *icmpPacketHeader =icmp_header(packet);
       
-      if ((icmpPacketHeader->icmp_type == type_echo_request) || (icmpPacketHeader->icmp_type == type_echo_reply))
+      if ((ntohs(icmpPacketHeader->icmp_type) == type_echo_request) || (ntohs(icmpPacketHeader->icmp_type) == type_echo_reply))
       {
          sr_icmp_t0_hdr_t *echoPacketHeader = (sr_icmp_t0_hdr_t *) icmpPacketHeader;
          int icmpLength = length - packet->ip_hl * 4;
@@ -947,7 +947,7 @@ static void natHandleReceivedInboundIpPacket(struct sr_instance *sr, sr_ip_hdr_t
             sr_icmp_t3_hdr_t *unreachablePacketHeader = (sr_icmp_t3_hdr_t *) icmpPacketHeader;
             originalDatagram = (sr_ip_hdr_t*) (unreachablePacketHeader->data);
          }
-         else if (icmpPacketHeader->icmp_type == type_time_exceeded)
+         else if (ntohs(icmpPacketHeader->icmp_type) == type_time_exceeded)
          {
             sr_icmp_t3_hdr_t *unreachablePacketHeader = (sr_icmp_t3_hdr_t *) icmpPacketHeader;
             originalDatagram = (sr_ip_hdr_t*) (unreachablePacketHeader->data);
