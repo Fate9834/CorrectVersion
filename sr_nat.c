@@ -429,7 +429,7 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
           {
           
             /* No mapping exists. Assume ping is actually for us */
-            ip_handlepacketforme(sr, ipPacket, length, r_interface->name);
+            ip_handlepacketforme(sr, ipPacket, r_interface->name);
           } else {
               natHandleReceivedInboundIpPacket(sr, ipPacket, length, r_interface,natLookupResult);
               free (natLookupResult);
@@ -446,8 +446,6 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
               sr_icmp_t3_hdr_t *unreachableHeader = (sr_icmp_t3_hdr_t *)icmpHeader;
               embeddedIpPacket = (sr_ip_hdr_t *)unreachableHeader->data;
             } else {
-                fprintf(stderr, "** Dropping unsupported inbound ICMP packet Type:\n", icmpHeader->icmp_type);
-                fprintf(stderr, "** Code:\n", icmpHeader->icmp_code ); 
                 return;
               }
             assert(embeddedIpPacket);
