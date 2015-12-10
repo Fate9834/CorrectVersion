@@ -314,7 +314,7 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
                                sr_ip_hdr_t *ipPacket, unsigned int length,
                                struct sr_if const *const r_interface)
 {
-    uint32_t ip_dst = ipPacket->ip_dsr;
+    uint32_t ip_dst = ipPacket->ip_dst;
     sr_icmp_hdr_t *icmpHeader = icmp_header(ipPacket);
 
     if (!icmp_validpacket(ipPacket));
@@ -336,7 +336,7 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
       if ((icmpHeader->icmp_type == type_echo_request)
          || (icmpHeader->icmp_type == type_echo_reply))
       {
-        sr_icmp_hdr_t *icmpPingHdr = (sr_icmp_hdr_t *)icmpHeader;
+        sr_icmp_t0_hdr_t *icmpPingHdr = (sr_icmp_hdr_t *)icmpHeader;
         sr_nat_mapping_t *natLookupResult = sr_nat_lookup_internal(sr->nat, ipPacket->ip_src,
                                                                   icmpPingHdr->ident, nat_mapping_icmp);
 
@@ -406,10 +406,10 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
           /* Packet no for me */
           struct sr_rt* lpmatch = longest_prefix_matching(sr, ipPacket->ip_dst);
 
-          if ((sr_get_interface(sr,internalInterfaceName)->ip)
-             != (sr_get_interface(sr,lpmatch->interface)->ip))
+          if ((sr_get_interface(sr, internal_if)->ip)
+             != (sr_get_interface(sr, lpmatch->interface)->ip))
           {
-          ip_forwardpacket(sr, ipPacket, length, receivedInterface->name)
+            ip_forwardpacket(sr, ipPacket, length, r_interface->name);
           } else {
               printf("%sUnsolicited inbound ICMP packet received attempting to send to internal IP. Dropping.\n");
             }
@@ -418,7 +418,7 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
         else if (ip_dst == sr_get_interface(sr, internal_if)->ip)
         {
           /* For me but dst is internal interface */
-          printf("%sReceived ICMP packet to our internal interface. Dropping.\n", );
+          printf("%sReceived ICMP packet to our internal interface. Dropping.\n");
           return;
         }
         else if ((icmpHeader->icmp_type == type_echo_request)
@@ -444,7 +444,7 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
             sr_nat_mapping_t *natLookupResult = NULL;
 
             if ((icmpHeader->icmp_type == type_dst_unreach)
-               || (icmpHeader->icmp_type ==type_time_exceeded)
+               || (icmpHeader->icmp_type ==type_time_exceeded))
             {
               sr_icmp_t3_hdr_t *unreachableHeader = (sr_icmp_t3_hdr_t *)icmpHeader;
               embeddedIpPacket = (sr_ip_hdr_t *)unreachableHeader->data;
@@ -634,13 +634,12 @@ static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, un
       /* Inbound TCP packet */
       sr_nat_mapping_t *natMapping = sr_nat_lookup_external(sr->nat, tcpHeader->destinationPort,
                                                            nat_mapping_tcp);
+      struct sr_rt* lpmatch = longest_prefix_matching(sr, ipPacket->ip_src);
 
       if (ntohs(tcpHeader->offset_controlBits) & TCP_SYN_Mask)
       {
 
         /* Inbound SYN received */
-        struct sr_rt* lpmatch = longest_prefix_matching(sr, ipPacket->ip_src);
-
         if (natMapping == NULL)
         {
           /* Inbound TCP SYN without mapping, check destination port and send ICMP port unreachable denpending on it */
@@ -735,7 +734,7 @@ static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, un
           pthread_mutex_lock(&(sr->nat->lock));
 
           sr_nat_mapping_t *sharedNatMapping = sr_nat_lookup_external((sr->nat, tcpHeader->destinationPort,
-                                                                     nat_mapping_tcp);
+                                                                     nat_mapping_tcp));
           sr_nat_connection_t *associatedConnection = sr_nat_lookup_connection(sharedNatMapping, ipPacket->ip_src,
                                                                               tcpHeader->sourcePort);         
           if (associatedConnection == NULL)
