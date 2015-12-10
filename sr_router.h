@@ -83,6 +83,7 @@ void sr_handle_arpreq(struct sr_instance *sr, struct sr_arpreq *req);
 int arp_validpacket(uint8_t *packet, unsigned int len);
 int ip_validpacket(uint8_t *packet, unsigned int len);
 int icmp_validpacket(struct sr_ip_hdr *ip_hdr);
+int tcp_validpacket(struct sr_ip_hdr *ip_hdr);
 int sr_packet_is_for_me(struct sr_instance* sr, uint32_t ip_dst);
 void arp_boardcast(struct sr_instance* sr, struct sr_arpreq *req);
 struct sr_rt* longest_prefix_matching(struct sr_instance *sr, uint32_t ip_dest);

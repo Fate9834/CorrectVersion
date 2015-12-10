@@ -242,7 +242,7 @@ struct sr_tcp_ip_pseudo_hdr
    uint8_t zeros;               /* A byte of 0 */
    uint8_t protocol;            /* IP Protocol field (should be ip_protocol_tcp) */
    uint16_t tcpLength;          /* Length of the TCP packet */
-} __attribute__((packed));
+} __attribute__((packed)) ;
 typedef struct sr_tcp_ip_pseudo_hdr sr_tcp_ip_pseudo_hdr_t;
 
 #define sr_IFACE_NAMELEN 32

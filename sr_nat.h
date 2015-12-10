@@ -32,9 +32,10 @@ typedef enum
   nat_conn_time_wait /**< One of the endpoints has sent a FIN. */
 } sr_nat_tcp_conn_state_t;
 
-typedef struct sr_nat_connection
+struct sr_nat_connection
 {
-/* add TCP connection state data members here */
+
+  /* Add TCP connection state data members here */
   sr_nat_tcp_conn_state_t connectionState;
   time_t lastAccessed;
   sr_ip_hdr_t * queuedInboundSyn;
@@ -46,11 +47,12 @@ typedef struct sr_nat_connection
   } external;
 
   struct sr_nat_connection *next;
-} sr_nat_connection_t;
+} __attribute__((packed)) ;
+typedef struct sr_nat_connection sr_nat_connection_t;
 
 
-typedef struct sr_nat_mapping {
-
+struct sr_nat_mapping
+{
   sr_nat_mapping_type type;
   uint32_t ip_int; /* internal ip addr */
   uint32_t ip_ext; /* external ip addr */
@@ -59,10 +61,11 @@ typedef struct sr_nat_mapping {
   time_t last_updated; /* use to timeout mappings */
   struct sr_nat_connection *conns; /* list of connections. null for ICMP */
   struct sr_nat_mapping *next;
-} sr_nat_mapping_t;
+} __attribute__((packed)) ;
+typedef struct sr_nat_mapping sr_nat_mapping_t;
 
-typedef struct sr_nat {
-
+struct sr_nat
+{
   struct sr_nat_mapping *mappings;
   struct sr_instance * routerState;
   uint16_t nextTcpPortNumber;
@@ -76,7 +79,8 @@ typedef struct sr_nat {
   pthread_mutexattr_t attr;
   pthread_attr_t thread_attr;
   pthread_t thread;
-} sr_nat_t;
+} __attribute__((packed)) ;
+typedef struct sr_nat sr_nat_t;
 
 int   sr_nat_init(struct sr_nat *nat);     /* Initializes the nat */
 int   sr_nat_destroy(struct sr_nat *nat);  /* Destroys the nat (free memory) */
