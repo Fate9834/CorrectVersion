@@ -250,11 +250,11 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
 
     if (type == nat_mapping_icmp)
     {
-      printf("%sCreated new ICMP mapping\n");
+      printf("** Created new ICMP mapping\n");
     }
     else if (type == nat_mapping_tcp)
     {
-      printf("%sCreated new TCP mapping\n");
+      printf("** Created new TCP mapping\n");
     }
 
     /* Add mapping to the front of the list */
@@ -280,7 +280,7 @@ void nat_handle_ippacket(struct sr_instance *sr,
     {
       natHandleIcmpPacket(sr, ipPacket, length, r_interface);
     } else {
-        fprintf(stderr, "%sReceived packet of unknown IP protocol type %u. Dropping.\n", ipPacket->ip_p);
+        fprintf(stderr, "** Received packet of unknown IP protocol type %u. Dropping.\n", ipPacket->ip_p);
       }
 }
 
@@ -329,7 +329,7 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
     {
 
       /* Packet is for me and it's from inside */
-      IpHandleReceivedPacketToUs(sr, ipPacket, length, r_interface);
+      ip_handlepacketforme(sr, ipPacket, r_interface->name);
     }
     else if (sr_get_interface(sr, internal_if)->ip == r_interface->ip)
     {
@@ -338,7 +338,7 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
       if ((icmpHeader->icmp_type == type_echo_request)
          || (icmpHeader->icmp_type == type_echo_reply))
       {
-        sr_icmp_t0_hdr_t *icmpPingHdr = (sr_icmp_hdr_t *)icmpHeader;
+        sr_icmp_t0_hdr_t *icmpPingHdr = (sr_icmp_t0_hdr_t *)icmpHeader;
         sr_nat_mapping_t *natLookupResult = sr_nat_lookup_internal(sr->nat, ipPacket->ip_src,
                                                                   icmpPingHdr->ident, nat_mapping_icmp);
 
@@ -368,7 +368,7 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
 
           if (embeddedIpPacket->ip_p == ip_protocol_icmp)
           {
-            sr_icmp_t0_hdr_t * embeddedIcmpHeader = icmp_header(embeddedIpPacket);
+            sr_icmp_t0_hdr_t *embeddedIcmpHeader = (sr_icmp_t0_hdr_t *) (icmp_header(embeddedIpPacket));
             if ((embeddedIcmpHeader->icmp_type == type_echo_request)
                || (embeddedIcmpHeader->icmp_type == type_echo_reply))
             {
