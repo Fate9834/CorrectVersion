@@ -381,7 +381,7 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
           }
           else if(embeddedIpPacket->ip_p == ip_protocol_tcp)
           {
-            sr_tcp_hdr_t *embeddedTcpHeader = tcp_header(embeddedIpPacket);
+            struct sr_tcp_hdr *embeddedTcpHeader = tcp_header(embeddedIpPacket);
             natLookupResult = sr_nat_lookup_internal(sr->nat, embeddedIpPacket->ip_dst,
                                                     embeddedTcpHeader->destinationPort, nat_mapping_tcp);
           } else {
@@ -408,14 +408,14 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
           {
             ip_forwardpacket(sr, ipPacket, length, r_interface->name);
           } else {
-              printf("%sUnsolicited inbound ICMP packet received attempting to send to internal IP. Dropping.\n");
+              printf("** Unsolicited inbound ICMP packet received attempting to send to internal IP. Dropping.\n");
             }
           return;
         }
         else if (ip_dst == sr_get_interface(sr, internal_if)->ip)
         {
           /* For me but dst is internal interface */
-          printf("%sReceived ICMP packet to our internal interface. Dropping.\n");
+          printf("** Received ICMP packet to our internal interface. Dropping.\n");
           return;
         }
         else if ((icmpHeader->icmp_type == type_echo_request)
@@ -429,7 +429,7 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
           {
           
             /* No mapping exists. Assume ping is actually for us */
-            IpHandleReceivedPacketToUs(sr, ipPacket, length, r_interface);
+            ip_handlepacketforme(sr, ipPacket, length, r_interface->name);
           } else {
               natHandleReceivedInboundIpPacket(sr, ipPacket, length, r_interface,natLookupResult);
               free (natLookupResult);
@@ -446,8 +446,8 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
               sr_icmp_t3_hdr_t *unreachableHeader = (sr_icmp_t3_hdr_t *)icmpHeader;
               embeddedIpPacket = (sr_ip_hdr_t *)unreachableHeader->data;
             } else {
-                fprintf(stderr, "%sDropping unsupported inbound ICMP packet Type:\n", icmpHeader->icmp_type);
-                fprintf(stderr, "%sCode:\n", icmpHeader->icmp_code ); 
+                fprintf(stderr, "** Dropping unsupported inbound ICMP packet Type:\n", icmpHeader->icmp_type);
+                fprintf(stderr, "** Code:\n", icmpHeader->icmp_code ); 
                 return;
               }
             assert(embeddedIpPacket);
@@ -466,7 +466,7 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
             }
             else if (embeddedIpPacket->ip_p == ip_protocol_tcp)
             {
-              sr_tcp_hdr_t * embeddedTcpHeader = tcp_header(embeddedIpPacket);
+              struct sr_tcp_hdr *embeddedTcpHeader = tcp_header(embeddedIpPacket);
               natLookupResult = sr_nat_lookup_external(sr->nat, embeddedTcpHeader->sourcePort, nat_mapping_tcp);
             } else {
                 /* Unsupported protocol, drop the packet */
