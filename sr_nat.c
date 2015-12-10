@@ -728,8 +728,8 @@ static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, un
           /* Lookup the associated connection */
           pthread_mutex_lock(&(sr->nat->lock));
 
-          sr_nat_mapping_t *sharedNatMapping = sr_nat_lookup_external((sr->nat, tcpHeader->destinationPort,
-                                                                     nat_mapping_tcp));
+          sr_nat_mapping_t *sharedNatMapping = sr_nat_lookup_external(sr->nat, tcpHeader->destinationPort,
+                                                                     nat_mapping_tcp);
           sr_nat_connection_t *associatedConnection = sr_nat_lookup_connection(sharedNatMapping, ipPacket->ip_src,
                                                                               tcpHeader->sourcePort);         
           if (associatedConnection == NULL)
