@@ -155,7 +155,7 @@ int sr_connect_to_server(struct sr_instance* sr,unsigned short port,
         return -1;
     }
 
-    if(strlen(sr->template) > 0)
+    if(strlen(sr->template_name) > 0)
         if(sr_read_from_server_expect(sr, VNS_RTABLE) != 1)
             return -1; /* needed to get the rtable */
 

@@ -1149,6 +1149,7 @@ static uint16_t natNextMappingNumber(sr_nat_t* nat, sr_nat_mapping_type mappingT
 }
 
 
+
 static sr_nat_connection_t * natTrustedFindConnection(sr_nat_mapping_t *natEntry, uint32_t ip_ext, 
    uint16_t port_ext)
 {
