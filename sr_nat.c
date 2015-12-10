@@ -11,8 +11,6 @@
 
 static const char internal_if[] = "eth1";
 
-static sr_nat_connection_t *sr_nat_lookup_connection(sr_nat_mapping_t *natEntry, uint32_t ip_ext, 
-                                                    uint16_t port_ext);
 static void natHandleIcmpPacket(struct sr_instance* sr, sr_ip_hdr_t *ipPacket, unsigned int length,
                                struct sr_if *r_interface);
 static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, unsigned int length,
@@ -25,15 +23,14 @@ static void natRecalculateTcpChecksum(sr_ip_hdr_t *tcpPacket, unsigned int lengt
 static void sr_nat_destroy_connection(sr_nat_mapping_t *natMapping, sr_nat_connection_t *connection);
 static void sr_nat_destroy_mapping(sr_nat_t *nat, sr_nat_mapping_t *natMapping);
 static uint16_t natNextMappingNumber(sr_nat_t *nat, sr_nat_mapping_type mappingType);
-
-static sr_nat_mapping_t * natTrustedLookupInternal(sr_nat_t *nat, uint32_t ip_int, uint16_t aux_int,
-   sr_nat_mapping_type type);
-static sr_nat_mapping_t * natTrustedLookupExternal(sr_nat_t * nat, uint16_t aux_ext,
-   sr_nat_mapping_type type);
-static sr_nat_mapping_t * natTrustedCreateMapping(sr_nat_t *nat, uint32_t ip_int, uint16_t aux_int,
-   sr_nat_mapping_type type);
-static sr_nat_connection_t * natTrustedFindConnection(sr_nat_mapping_t *natEntry, uint32_t ip_ext, 
-   uint16_t port_ext);
+static sr_nat_mapping_t *natTrustedLookupExternal(sr_nat_t *nat, uint16_t aux_ext,
+                                                 sr_nat_mapping_type type);
+static sr_nat_mapping_t *natTrustedLookupInternal(sr_nat_t *nat, uint32_t ip_int, uint16_t aux_int,
+                                                 sr_nat_mapping_type type);
+static sr_nat_mapping_t *natTrustedCreateMapping(sr_nat_t *nat, uint32_t ip_int, uint16_t aux_int,
+                                                sr_nat_mapping_type type);
+static sr_nat_connection_t *natTrustedFindConnection(sr_nat_mapping_t *natEntry, uint32_t ip_ext, 
+                                                    uint16_t port_ext);
 
 
 int sr_nat_init(struct sr_nat *nat) 
@@ -169,7 +166,7 @@ void *sr_nat_timeout(void *nat_ptr)
 
 /* Get the mapping associated with given external port
 Must free the returned structure if it is not NULL */
-sstruct sr_nat_mapping *sr_nat_lookup_external(struct sr_nat *nat, uint16_t aux_ext,
+struct sr_nat_mapping *sr_nat_lookup_external(struct sr_nat *nat, uint16_t aux_ext,
    sr_nat_mapping_type type)
 {
    pthread_mutex_lock(&(nat->lock));
@@ -351,26 +348,6 @@ void NatUndoPacketMapping(struct sr_instance * sr, sr_ip_hdr_t* ip_hdr, unsigned
          }
       }
    }
-}
-
-static sr_nat_connection_t *sr_nat_lookup_connection(sr_nat_mapping_t *natEntry, uint32_t ip_ext, 
-                                                    uint16_t port_ext)
-{
-    sr_nat_connection_t *conn_walker = natEntry->conns;
-   
-    while (conn_walker != NULL)
-    {
-      if ((conn_walker->external.ipAddress == ip_ext) 
-         && (conn_walker->external.portNumber == port_ext))
-      {
-         conn_walker->lastAccessed = time(NULL);
-         break;
-      }
-      
-      conn_walker = conn_walker->next;
-    }
-
-    return conn_walker;
 }
 
 /*
@@ -624,7 +601,7 @@ static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, un
                                                                        tcpHeader->sourcePort, nat_mapping_tcp);
             assert(sharedNatMapping);
             
-            sr_nat_connection_t *connection = natTrustedLookupInternal(sharedNatMapping,
+            sr_nat_connection_t *connection = natTrustedFindConnection(sharedNatMapping,
                                                                       ipPacket->ip_dst, tcpHeader->destinationPort);  
 
             if (connection == NULL)
@@ -1149,9 +1126,8 @@ static uint16_t natNextMappingNumber(sr_nat_t* nat, sr_nat_mapping_type mappingT
   return startIndex;
 }
 
-
-static sr_nat_mapping_t * natTrustedLookupExternal(sr_nat_t * nat, uint16_t aux_ext,
-   sr_nat_mapping_type type)
+static sr_nat_mapping_t *natTrustedLookupExternal(sr_nat_t *nat, uint16_t aux_ext,
+                                                 sr_nat_mapping_type type)
 {
    for (sr_nat_mapping_t * mappingWalker = nat->mappings; mappingWalker != NULL ; mappingWalker =
       mappingWalker->next)
@@ -1164,26 +1140,25 @@ static sr_nat_mapping_t * natTrustedLookupExternal(sr_nat_t * nat, uint16_t aux_
    return NULL;
 }
 
-static sr_nat_connection_t * natTrustedFindConnection(sr_nat_mapping_t *natEntry, uint32_t ip_ext, 
-   uint16_t port_ext)
+static sr_nat_mapping_t *natTrustedLookupInternal(sr_nat_t *nat, uint32_t ip_int, uint16_t aux_int,
+                                                 sr_nat_mapping_type type)
 {
-   sr_nat_connection_t * connectionIterator = natEntry->conns;
-   while (connectionIterator != NULL)
-   {
-      if ((connectionIterator->external.ipAddress == ip_ext) 
-         && (connectionIterator->external.portNumber == port_ext))
-      {
-         connectionIterator->lastAccessed = time(NULL);
-         break;
-      }
+   sr_nat_mapping_t *mappingWalker;
       
-      connectionIterator = connectionIterator->next;
+   for (mappingWalker = nat->mappings; mappingWalker != NULL; mappingWalker = mappingWalker->next)
+   {
+      if ((mappingWalker->type == type) && (mappingWalker->ip_int == ip_int)
+         && (mappingWalker->aux_int == aux_int))
+      {
+         return mappingWalker;
+      }
    }
-   return connectionIterator;
+
+   return NULL;
 }
 
-static sr_nat_mapping_t * natTrustedCreateMapping(sr_nat_t *nat, uint32_t ip_int, uint16_t aux_int,
-   sr_nat_mapping_type type)
+static sr_nat_mapping_t *natTrustedCreateMapping(sr_nat_t *nat, uint32_t ip_int, uint16_t aux_int,
+                                                sr_nat_mapping_type type)
 {
    struct sr_nat_mapping *mapping = malloc(sizeof(sr_nat_mapping_t));
    
@@ -1203,16 +1178,21 @@ static sr_nat_mapping_t * natTrustedCreateMapping(sr_nat_t *nat, uint32_t ip_int
    return mapping;
 }
 
-static sr_nat_mapping_t * natTrustedLookupExternal(sr_nat_t * nat, uint16_t aux_ext,
-   sr_nat_mapping_type type)
+static sr_nat_connection_t *natTrustedFindConnection(sr_nat_mapping_t *natEntry, uint32_t ip_ext, 
+                                                    uint16_t port_ext)
 {
-   for (sr_nat_mapping_t * mappingWalker = nat->mappings; mappingWalker != NULL ; mappingWalker =
-      mappingWalker->next)
+   sr_nat_connection_t *conn_walker = natEntry->conns;
+   
+   while (conn_walker != NULL)
    {
-      if ((mappingWalker->type == type) && (mappingWalker->aux_ext == aux_ext))
+      if ((conn_walker->external.ipAddress == ip_ext) 
+         && (conn_walker->external.portNumber == port_ext))
       {
-         return mappingWalker;
+         conn_walker->lastAccessed = time(NULL);
+         break;
       }
+      
+      conn_walker = conn_walker->next;
    }
-   return NULL;
+   return conn_walker;
 }
