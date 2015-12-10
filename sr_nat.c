@@ -421,7 +421,7 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
         else if ((icmpHeader->icmp_type == type_echo_request)
                 || (icmpHeader->icmp_type == type_echo_reply))   /* For me & is echo_request/reply */
         {
-          sr_icmp_t0_hdr_t icmp_ping_hdr = (sr_icmp_t0_hdr_t *)icmpHeader;
+          sr_icmp_t0_hdr_t *icmp_ping_hdr = (sr_icmp_t0_hdr_t *)icmpHeader;
           sr_nat_mapping_t *natLookupResult = sr_nat_lookup_external(sr->nat, icmp_ping_hdr->ident,
                                                                     nat_mapping_icmp);
 
