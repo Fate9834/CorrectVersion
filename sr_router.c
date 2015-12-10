@@ -15,7 +15,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include <stdbool.h>
 #include "sr_if.h"
 #include "sr_rt.h"
 #include "sr_router.h"
