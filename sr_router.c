@@ -702,7 +702,7 @@ void sr_icmp_with_payload(struct sr_instance *sr,
 
     if (icmp_type == 11 && icmp_code == 0){
       if (sr->nat != NULL){
-        NatUndoPacketMapping(sr, ip_hdr, ntohl(ip_hdr->ip_len), r_interface);
+        NatUndoPacketMapping(sr, ip_hdr, ip_hdr->ip_len, r_interface);
       }
     }
 

@@ -47,7 +47,7 @@ struct sr_nat_connection
   } external;
 
   struct sr_nat_connection *next;
-} __attribute__((packed)) ;
+};
 typedef struct sr_nat_connection sr_nat_connection_t;
 
 
@@ -61,7 +61,7 @@ struct sr_nat_mapping
   time_t last_updated; /* use to timeout mappings */
   struct sr_nat_connection *conns; /* list of connections. null for ICMP */
   struct sr_nat_mapping *next;
-} __attribute__((packed)) ;
+};
 typedef struct sr_nat_mapping sr_nat_mapping_t;
 
 struct sr_nat
@@ -79,7 +79,7 @@ struct sr_nat
   pthread_mutexattr_t attr;
   pthread_attr_t thread_attr;
   pthread_t thread;
-} __attribute__((packed)) ;
+};
 typedef struct sr_nat sr_nat_t;
 
 int   sr_nat_init(struct sr_nat *nat);     /* Initializes the nat */
