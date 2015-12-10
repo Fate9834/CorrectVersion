@@ -360,11 +360,6 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
           }
           else
           {
-            /* By RFC, no other ICMP types have to support NAT traversal (SHOULDs 
-            * instead of MUSTs). It's not that I'm lazy, it's just that this 
-            * assignment is hard enough as it is. */
-            fprintf(stderr, "\tDropping unsupported outbound ICMP packet Type: %d\n", icmpHeader->icmp_type);
-            fprintf(stderr, "\tCode: %d\n", icmpHeader->icmp_code));
             return;
           }
           assert(embeddedIpPacket);
@@ -758,25 +753,28 @@ static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, un
     }
 }
 
-static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_t* packet, unsigned int length, const struct sr_if* const r_interface, sr_nat_mapping_t * natMapping)
+static void natHandleReceivedOutboundIpPacket(struct sr_instance *sr, sr_ip_hdr_t *packet, unsigned int length,
+                                             const struct sr_if *const r_interface, sr_nat_mapping_t *natMapping)
 {
- if (packet->ip_p == ip_protocol_icmp)
-  { sr_icmp_hdr_t *icmpPacketHeader = icmp_header(packet);\
-   if ((icmpPacketHeader->icmp_type == type_echo_request) || (icmpPacketHeader->icmp_type == type_echo_reply))
-   {
-    sr_icmp_t0_hdr_t* rewrittenIcmpHeader = (sr_icmp_t0_hdr_t*) icmpPacketHeader;
-    int icmpLength = length - packet->ip_hl * 4;
-    assert(natMapping);
+  if (packet->ip_p == ip_protocol_icmp)
+  { 
+    sr_icmp_hdr_t *icmpPacketHeader = icmp_header(packet);
 
-         /* Handle ICMP identify remap and validate. */
-    rewrittenIcmpHeader->ident = natMapping->aux_ext;
-    rewrittenIcmpHeader->icmp_sum = 0;
-    rewrittenIcmpHeader->icmp_sum = cksum(rewrittenIcmpHeader, icmpLength);
+    if ((icmpPacketHeader->icmp_type == type_echo_request) || (icmpPacketHeader->icmp_type == type_echo_reply))
+    {
+      sr_icmp_t0_hdr_t* rewrittenIcmpHeader = (sr_icmp_t0_hdr_t*) icmpPacketHeader;
+      int icmpLength = length - packet->ip_hl * 4;
+      assert(natMapping);
 
-         /* Handle IP address remap and validate. */
-    packet->ip_src = sr_get_interface(sr,longest_prefix_matching(sr, packet->ip_dst)->interface)->ip;
+      /* Handle ICMP identify remap and validate. */
+      rewrittenIcmpHeader->ident = natMapping->aux_ext;
+      rewrittenIcmpHeader->icmp_sum = 0;
+      rewrittenIcmpHeader->icmp_sum = cksum(rewrittenIcmpHeader, icmpLength);
 
-    ip_forwardpacket(sr, packet, length, r_interface->name);
+      /* Handle IP address remap and validate. */
+      packet->ip_src = sr_get_interface(sr,longest_prefix_matching(sr, packet->ip_dst)->interface)->ip;
+
+      ip_forwardpacket(sr, packet, length, r_interface->name);
   }
   else
   {
@@ -784,7 +782,7 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_
    sr_ip_hdr_t * originalDatagram;
    if (icmpPacketHeader->icmp_type == type_dst_unreach)
    {
-     /* This packet is actually associated with a stream. */
+    /* This packet is actually associated with a stream. */
     sr_icmp_t3_hdr_t *unreachablePacketHeader = (sr_icmp_t3_hdr_t *) icmpPacketHeader;
     originalDatagram = (sr_ip_hdr_t*) (unreachablePacketHeader->data);
    }
@@ -799,7 +797,7 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_
   {
     sr_tcp_hdr_t *originalTransportHeader = tcp_header(originalDatagram);
     
-            /* Perform mapping on embedded payload */
+    /* Perform mapping on embedded payload */
     originalTransportHeader->destinationPort = natMapping->aux_ext;
     originalDatagram->ip_dst = sr_get_interface(sr, longest_prefix_match(sr, packet->ip_dst)->interface)->ip;
   }
@@ -954,7 +952,7 @@ static void natRecalculateTcpChecksum(sr_ip_hdr_t * tcpPacket, unsigned int leng
 }
 
 
-static void sr_nat_destroy_connection (sr_nat_mapping_t* natMapping, sr_nat_connection * connection)
+static void sr_nat_destroy_connection (sr_nat_mapping_t *natMapping, sr_nat_connection *connection)
 {
 sr_nat_connection_t *req, *prev = NULL, *next = NULL;
    
