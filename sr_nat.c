@@ -1194,6 +1194,5 @@ static sr_nat_connection_t *natTrustedFindConnection(sr_nat_mapping_t *natEntry,
       
       conn_walker = conn_walker->next;
    }
-   
    return conn_walker;
 }
