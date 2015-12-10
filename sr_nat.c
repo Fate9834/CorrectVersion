@@ -26,6 +26,16 @@ static void sr_nat_destroy_connection(sr_nat_mapping_t *natMapping, sr_nat_conne
 static void sr_nat_destroy_mapping(sr_nat_t *nat, sr_nat_mapping_t *natMapping);
 static uint16_t natNextMappingNumber(sr_nat_t *nat, sr_nat_mapping_type mappingType);
 
+static sr_nat_mapping_t * natTrustedLookupInternal(sr_nat_t *nat, uint32_t ip_int, uint16_t aux_int,
+   sr_nat_mapping_type type);
+static sr_nat_mapping_t * natTrustedLookupExternal(sr_nat_t * nat, uint16_t aux_ext,
+   sr_nat_mapping_type type);
+static sr_nat_mapping_t * natTrustedCreateMapping(sr_nat_t *nat, uint32_t ip_int, uint16_t aux_int,
+   sr_nat_mapping_type type);
+static sr_nat_connection_t * natTrustedFindConnection(sr_nat_mapping_t *natEntry, uint32_t ip_ext, 
+   uint16_t port_ext);
+
+
 int sr_nat_init(struct sr_nat *nat) 
 { 
 
@@ -159,35 +169,24 @@ void *sr_nat_timeout(void *nat_ptr)
 
 /* Get the mapping associated with given external port
 Must free the returned structure if it is not NULL */
-struct sr_nat_mapping *sr_nat_lookup_external(struct sr_nat *nat,
-                                             uint16_t aux_ext,
-                                             sr_nat_mapping_type type)
+sstruct sr_nat_mapping *sr_nat_lookup_external(struct sr_nat *nat, uint16_t aux_ext,
+   sr_nat_mapping_type type)
 {
-    pthread_mutex_lock(&nat->lock);
-
-    /* Handle lookup , malloc and assign to copy */
-    struct sr_nat_mapping *copy = NULL, *result = NULL;
-
-    /* Search for mapping */
-    for (sr_nat_mapping_t *mappingWalker = nat->mappings; mappingWalker != NULL; mappingWalker = mappingWalker->next)
-    {
-      if ((mappingWalker->type == type) && (mappingWalker->aux_ext == aux_ext))
-      {
-        result = mappingWalker;
-        break;
-      }
-    }
-
-    if (result)
-    {
-      result->last_updated = time(NULL);
-      copy = malloc(sizeof(struct sr_nat_mapping));
-      assert(copy);
-      memcpy(copy, result, sizeof(struct sr_nat_mapping));
-    }
-
-    pthread_mutex_unlock(&(nat->lock));
-    return copy;
+   pthread_mutex_lock(&(nat->lock));
+   
+   /* handle lookup here, malloc and assign to copy */
+   sr_nat_mapping_t *copy = NULL;
+   sr_nat_mapping_t *lookupResult = natTrustedLookupExternal(nat, aux_ext, type); 
+   
+   if (lookupResult != NULL)
+   {
+      lookupResult->last_updated = time(NULL);
+      copy = malloc(sizeof(sr_nat_mapping_t));
+      memcpy(copy, lookupResult, sizeof(sr_nat_mapping_t));
+   }
+   
+   pthread_mutex_unlock(&(nat->lock));
+   return copy;
 }
 
 /* Get the mapping associated with given internal (ip, port) pair
@@ -227,44 +226,31 @@ struct sr_nat_mapping *sr_nat_lookup_internal(struct sr_nat *nat,
 
 /* Insert a new mapping into the nat's mapping table
 Actually returns a copy to the new mapping, for thread safety */
-struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
-                                            uint32_t ip_int,
-                                            uint16_t aux_int,
-                                            sr_nat_mapping_type type)
+struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat, uint32_t ip_int, uint16_t aux_int,
+   sr_nat_mapping_type type)
 {
-    pthread_mutex_lock(&nat->lock);
+   pthread_mutex_lock(&(nat->lock));
+   
+   /* handle insert here, create a mapping, and then return a copy of it */
+   struct sr_nat_mapping *mapping = natTrustedCreateMapping(nat, ip_int, aux_int, type);
+   struct sr_nat_mapping *copy = malloc(sizeof(sr_nat_mapping_t));
+   
+   if (type == nat_mapping_icmp)
+   {
+      printf("Created new ICMP mapping.\n"); 
+         
+   }
+   else if (type == nat_mapping_tcp)
+   {
 
-    /* Handle insert here, create a mapping, and then return a copy of it */
-    struct sr_nat_mapping *mapping = NULL;
-    struct sr_nat_mapping *copy;
-
-    mapping = malloc(sizeof(sr_nat_mapping_t));
-    mapping->conns = NULL;
-    mapping->aux_ext = natNextMappingNumber(nat, type);
-    mapping->ip_int = ip_int;
-    mapping->aux_int = aux_int;
-    mapping->type = type;
-    mapping->last_updated = time(NULL);
-
-    if (type == nat_mapping_icmp)
-    {
-      printf("** Created new ICMP mapping\n");
-    }
-    else if (type == nat_mapping_tcp)
-    {
-      printf("** Created new TCP mapping\n");
-    }
-
-    /* Add mapping to the front of the list */
-    mapping->next = nat->mappings;
-    nat->mappings = mapping;
-
-    copy = malloc(sizeof(sr_nat_mapping_t));
-    memcpy(copy, mapping, sizeof(sr_nat_mapping_t));
-
-    pthread_mutex_unlock(&(nat->lock));
-
-    return copy;
+     printf("Created new TCP mapping.\n"); 
+    
+   }
+   
+   memcpy(copy, mapping, sizeof(sr_nat_mapping_t));
+   
+   pthread_mutex_unlock(&(nat->lock));
+   return copy;
 }
 
 void nat_handle_ippacket(struct sr_instance *sr,
@@ -610,7 +596,7 @@ static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, un
           assert(firstConnection);
           assert(natMapping);
             
-          sharedNatMapping = sr_nat_insert_mapping(sr->nat, ipPacket->ip_src,
+          sharedNatMapping = natTrustedCreateMapping(sr->nat, ipPacket->ip_src,
                                                     tcpHeader->sourcePort, nat_mapping_tcp);
           assert(sharedNatMapping);
             
@@ -634,11 +620,11 @@ static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, un
             /* Outbound SYN with prior mapping. Add the connection if one doesn't exist */
             pthread_mutex_lock(&(sr->nat->lock));
 
-            sr_nat_mapping_t *sharedNatMapping = sr_nat_lookup_internal(sr->nat, ipPacket->ip_src,
+            sr_nat_mapping_t *sharedNatMapping = natTrustedLookupInternal(sr->nat, ipPacket->ip_src,
                                                                        tcpHeader->sourcePort, nat_mapping_tcp);
             assert(sharedNatMapping);
             
-            sr_nat_connection_t *connection = sr_nat_lookup_connection(sharedNatMapping,
+            sr_nat_connection_t *connection = natTrustedLookupInternal(sharedNatMapping,
                                                                       ipPacket->ip_dst, tcpHeader->destinationPort);  
 
             if (connection == NULL)
@@ -686,9 +672,9 @@ static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, un
         /* Outbound FIN detected. Put connection into TIME_WAIT state */
         pthread_mutex_lock(&(sr->nat->lock));
 
-        sr_nat_mapping_t *sharedNatMapping = sr_nat_lookup_internal(sr->nat, ipPacket->ip_src,
+        sr_nat_mapping_t *sharedNatMapping = natTrustedLookupInternal(sr->nat, ipPacket->ip_src,
                                                                    tcpHeader->sourcePort, nat_mapping_tcp);
-        sr_nat_connection_t *associatedConnection = sr_nat_lookup_connection(sharedNatMapping, ipPacket->ip_dst,
+        sr_nat_connection_t *associatedConnection = natTrustedFindConnection(sharedNatMapping, ipPacket->ip_dst,
                                                                             tcpHeader->destinationPort);
          
         if (associatedConnection)
@@ -734,11 +720,11 @@ static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, un
             /* Potential simultaneous open */
             pthread_mutex_lock(&sr->nat->lock);
             
-            sr_nat_mapping_t *sharedNatMapping = sr_nat_lookup_external(sr->nat, tcpHeader->destinationPort,
+            sr_nat_mapping_t *sharedNatMapping = natTrustedLookupExternal(sr->nat, tcpHeader->destinationPort,
                                                                          nat_mapping_tcp);
             assert(sharedNatMapping);
             
-            sr_nat_connection_t *connection = sr_nat_lookup_connection(sharedNatMapping, ipPacket->ip_src,
+            sr_nat_connection_t *connection = natTrustedFindConnection(sharedNatMapping, ipPacket->ip_src,
                                                                       tcpHeader->sourcePort);
 
             if (connection == NULL)
@@ -795,9 +781,9 @@ static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, un
         /* Inbound FIN detected. Put connection into TIME_WAIT state */
         pthread_mutex_lock(&sr->nat->lock);
 
-        sr_nat_mapping_t *sharedNatMapping = sr_nat_lookup_external(sr->nat, tcpHeader->destinationPort,
+        sr_nat_mapping_t *sharedNatMapping = natTrustedLookupExternal(sr->nat, tcpHeader->destinationPort,
                                                                    nat_mapping_tcp);
-        sr_nat_connection_t *associatedConnection = sr_nat_lookup_connection(sharedNatMapping, ipPacket->ip_src,
+        sr_nat_connection_t *associatedConnection = natTrustedFindConnection(sharedNatMapping, ipPacket->ip_src,
                                                                             tcpHeader->sourcePort);         
         if (associatedConnection)
         {
@@ -810,9 +796,9 @@ static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, un
           /* Lookup the associated connection */
           pthread_mutex_lock(&(sr->nat->lock));
 
-          sr_nat_mapping_t *sharedNatMapping = sr_nat_lookup_external(sr->nat, tcpHeader->destinationPort,
+          sr_nat_mapping_t *sharedNatMapping =  natTrustedLookupExternal(sr->nat, tcpHeader->destinationPort,
                                                                      nat_mapping_tcp);
-          sr_nat_connection_t *associatedConnection = sr_nat_lookup_connection(sharedNatMapping, ipPacket->ip_src,
+          sr_nat_connection_t *associatedConnection = natTrustedFindConnection(sharedNatMapping, ipPacket->ip_src,
                                                                               tcpHeader->sourcePort);         
           if (associatedConnection == NULL)
           {
@@ -1161,4 +1147,72 @@ static uint16_t natNextMappingNumber(sr_nat_t* nat, sr_nat_mapping_type mappingT
   }
 
   return startIndex;
+}
+
+
+static sr_nat_mapping_t * natTrustedLookupExternal(sr_nat_t * nat, uint16_t aux_ext,
+   sr_nat_mapping_type type)
+{
+   for (sr_nat_mapping_t * mappingWalker = nat->mappings; mappingWalker != NULL ; mappingWalker =
+      mappingWalker->next)
+   {
+      if ((mappingWalker->type == type) && (mappingWalker->aux_ext == aux_ext))
+      {
+         return mappingWalker;
+      }
+   }
+   return NULL;
+}
+
+static sr_nat_connection_t * natTrustedFindConnection(sr_nat_mapping_t *natEntry, uint32_t ip_ext, 
+   uint16_t port_ext)
+{
+   sr_nat_connection_t * connectionIterator = natEntry->conns;
+   while (connectionIterator != NULL)
+   {
+      if ((connectionIterator->external.ipAddress == ip_ext) 
+         && (connectionIterator->external.portNumber == port_ext))
+      {
+         connectionIterator->lastAccessed = time(NULL);
+         break;
+      }
+      
+      connectionIterator = connectionIterator->next;
+   }
+   return connectionIterator;
+}
+
+static sr_nat_mapping_t * natTrustedCreateMapping(sr_nat_t *nat, uint32_t ip_int, uint16_t aux_int,
+   sr_nat_mapping_type type)
+{
+   struct sr_nat_mapping *mapping = malloc(sizeof(sr_nat_mapping_t));
+   
+   mapping->aux_ext = htons(natNextMappingNumber(nat, type));
+   mapping->conns = NULL;
+   
+   /* Store mapping information */
+   mapping->aux_int = aux_int;
+   mapping->ip_int = ip_int;
+   mapping->last_updated = time(NULL);
+   mapping->type = type;
+   
+   /* Add mapping to the front of the list. */
+   mapping->next = nat->mappings;
+   nat->mappings = mapping;
+   
+   return mapping;
+}
+
+static sr_nat_mapping_t * natTrustedLookupExternal(sr_nat_t * nat, uint16_t aux_ext,
+   sr_nat_mapping_type type)
+{
+   for (sr_nat_mapping_t * mappingWalker = nat->mappings; mappingWalker != NULL ; mappingWalker =
+      mappingWalker->next)
+   {
+      if ((mappingWalker->type == type) && (mappingWalker->aux_ext == aux_ext))
+      {
+         return mappingWalker;
+      }
+   }
+   return NULL;
 }
