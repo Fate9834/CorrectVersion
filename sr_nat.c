@@ -16,13 +16,13 @@ static const char internal_if[] = "eth1";
 static sr_nat_connection_t *sr_nat_lookup_connection(sr_nat_mapping_t *natEntry, uint32_t ip_ext, 
                                                     uint16_t port_ext);
 static void natHandleIcmpPacket(struct sr_instance* sr, sr_ip_hdr_t *ipPacket, unsigned int length,
-                               struct sr_if const *const r_interface);
+                               struct sr_if *r_interface);
 static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, unsigned int length,
-                              struct sr_if const *const r_interface);
+                              struct sr_if *r_interface);
 static void natHandleReceivedOutboundIpPacket(struct sr_instance *sr, sr_ip_hdr_t *packet, unsigned int length,
-                                             const struct sr_if *const r_interface, sr_nat_mapping_t *natMapping);
+                                             struct sr_if *r_interface, sr_nat_mapping_t *natMapping);
 static void natHandleReceivedInboundIpPacket(struct sr_instance *sr, sr_ip_hdr_t *packet, unsigned int length,
-                                            const struct sr_if *const r_interface, sr_nat_mapping_t *natMapping);
+                                            struct sr_if *r_interface, sr_nat_mapping_t *natMapping);
 static void natRecalculateTcpChecksum(sr_ip_hdr_t *tcpPacket, unsigned int length);
 static void sr_nat_destroy_connection(sr_nat_mapping_t *natMapping, sr_nat_connection_t *connection);
 static void sr_nat_destroy_mapping(sr_nat_t *nat, sr_nat_mapping_t *natMapping);
@@ -271,7 +271,7 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
 
 void nat_handle_ippacket(struct sr_instance *sr,
                         sr_ip_hdr_t *ipPacket, unsigned int length,
-                        struct sr_if const *const r_interface)
+                        struct sr_if *r_interface)
 {
     if (ipPacket->ip_p == ip_protocol_tcp)
     {
@@ -314,7 +314,7 @@ static sr_nat_connection_t *sr_nat_lookup_connection(sr_nat_mapping_t *natEntry,
 */
 static void natHandleIcmpPacket(struct sr_instance *sr,
                                sr_ip_hdr_t *ipPacket, unsigned int length,
-                               struct sr_if const *const r_interface)
+                               struct sr_if *r_interface)
 {
     uint32_t ip_dst = ipPacket->ip_dst;
     sr_icmp_hdr_t *icmpHeader = icmp_header(ipPacket);
@@ -490,7 +490,7 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
 */
 
 static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, unsigned int length,
-                              struct sr_if const *const r_interface)
+                              struct sr_if *r_interface)
 {
 
     sr_tcp_hdr_t *tcpHeader = tcp_header(ipPacket);
@@ -754,7 +754,7 @@ static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, un
 }
 
 static void natHandleReceivedOutboundIpPacket(struct sr_instance *sr, sr_ip_hdr_t *packet, unsigned int length,
-                                             const struct sr_if *const r_interface, sr_nat_mapping_t *natMapping)
+                                             struct sr_if *r_interface, sr_nat_mapping_t *natMapping)
 {
   if (packet->ip_p == ip_protocol_icmp)
   { 
@@ -831,8 +831,8 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance *sr, sr_ip_hdr_
 
 }
 
-static void natHandleReceivedInboundIpPacket(struct sr_instance* sr, sr_ip_hdr_t* packet, 
-   unsigned int length, const struct sr_if* const r_interface, sr_nat_mapping_t * natMapping)
+static void natHandleReceivedInboundIpPacket(struct sr_instance *sr, sr_ip_hdr_t *packet, 
+   unsigned int length, struct sr_if *r_interface, sr_nat_mapping_t *natMapping)
 {
    if (packet->ip_p == ip_protocol_icmp)
    {
@@ -923,14 +923,14 @@ static void natHandleReceivedInboundIpPacket(struct sr_instance* sr, sr_ip_hdr_t
  *       some of the information in the IP header is needed to form the TCP 
  *       pseudo-header for calculating the checksum.
  */
-static void natRecalculateTcpChecksum(sr_ip_hdr_t * tcpPacket, unsigned int length)
+static void natRecalculateTcpChecksum(sr_ip_hdr_t *tcpPacket, unsigned int length)
 {
    unsigned int tcpLength = length - tcpPacket->ip_hl * 4;
    uint8_t *packetCopy = malloc(sizeof(sr_tcp_ip_pseudo_hdr_t) + tcpLength);
 
    sr_tcp_ip_pseudo_hdr_t * checksummedHeader = (sr_tcp_ip_pseudo_hdr_t *) packetCopy;
-   sr_tcp_hdr_t * const tcpHeader = (sr_tcp_hdr_t * const ) (((uint8_t*) tcpPacket)
-      + getIpHeaderLength(tcpPacket));
+   sr_tcp_hdr_t * tcpHeader = (sr_tcp_hdr_t *) (((uint8_t*) tcpPacket)
+                                   + tcpPacket->ip_len);
    
    /* I wish there was a better way to do this with pointer magic, but I don't 
     * see it. Make a copy of the packet and prepend the IP pseudo-header to 
@@ -949,7 +949,7 @@ static void natRecalculateTcpChecksum(sr_ip_hdr_t * tcpPacket, unsigned int leng
 }
 
 
-static void sr_nat_destroy_connection (sr_nat_mapping_t *natMapping, sr_nat_connection *connection)
+static void sr_nat_destroy_connection (sr_nat_mapping_t *natMapping, sr_nat_connection_t *connection)
 {
 sr_nat_connection_t *req, *prev = NULL, *next = NULL;
    
