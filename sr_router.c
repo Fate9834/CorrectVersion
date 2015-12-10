@@ -23,6 +23,7 @@
 #include "sr_arpcache.h"
 #include "sr_utils.h"
 
+
 /*--------------------------------------------------------------------
 * Reply Definations
 *----------------------------------------------------------------------*/
@@ -34,7 +35,7 @@
 #define ICMP_IP_HDR_LEN_BYTE 20
 #define DEFAULT_TTL 100
 
-static inline bool natEnabled(sr_instance_t *sr)
+static inline bool natEnabled(struct sr_instance *sr)
 {
    return (sr->nat != NULL);
 }
