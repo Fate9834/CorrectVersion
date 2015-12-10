@@ -799,16 +799,15 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance *sr, sr_ip_hdr_
     
     /* Perform mapping on embedded payload */
     originalTransportHeader->destinationPort = natMapping->aux_ext;
-    originalDatagram->ip_dst = sr_get_interface(sr, longest_prefix_match(sr, packet->ip_dst)->interface)->ip;
+    originalDatagram->ip_dst = sr_get_interface(sr, longest_prefix_matching(sr, ntohl(packet->ip_dst))->interface)->ip;
   }
   else if (originalDatagram->ip_p == ip_protocol_icmp)
   {
-    sr_icmp_t0_hdr_t *originalTransportHeader =
-    (sr_icmp_t0_hdr_t *) getIcmpHeaderFromIpHeader(originalDatagram);
+    sr_icmp_t0_hdr_t *originalTransportHeader = (sr_icmp_t0_hdr_t *) icmp_header(originalDatagram);
     
-            /* Perform mapping on embedded payload */
+    /* Perform mapping on embedded payload */
     originalTransportHeader->ident = natMapping->aux_ext;
-    originalDatagram->ip_dst = sr_get_interface(sr, longest_prefix_match(sr, packet->ip_dst)->interface)->ip;
+    originalDatagram->ip_dst = sr_get_interface(sr, longest_prefix_matching(sr, ntohl(packet->ip_dst))->interface)->ip;
   }
   
   /* Update ICMP checksum */
@@ -816,8 +815,8 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance *sr, sr_ip_hdr_
   icmpPacketHeader->icmp_sum = cksum(icmpPacketHeader, icmpLength);
   
   /* Rewrite actual packet header. */
-  packet->ip_src = sr_get_interface(sr, longest_prefix_match(sr, packet->ip_dst)->interface)->ip;
-  ip_forwardpacket(sr, packet, length, r_interface);
+  packet->ip_src = sr_get_interface(sr, longest_prefix_matching(sr, ntohl(packet->ip_dst))->interface)->ip;
+  ip_forwardpacket(sr, packet, length, r_interface->name);
 }
 }
  else if (packet->ip_p == ip_protocol_tcp)
@@ -825,11 +824,9 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance *sr, sr_ip_hdr_
   sr_tcp_hdr_t* tcpHeader = tcp_header(packet);
       
       tcpHeader->sourcePort = natMapping->aux_ext;
-      packet->ip_src = sr_get_interface(sr,
-      IpGetPacketRoute(sr, ntohl(packet->ip_dst))->interface)->ip;
-      
+      packet->ip_src = sr_get_interface(sr, longest_prefix_matching(sr, ntohl(packet->ip_dst))->interface)->ip;    
       natRecalculateTcpChecksum(packet, length);
-      ip_forwardpacket(sr, packet, length, r_interface);
+      ip_forwardpacket(sr, packet, length, r_interface->name);
 }
 
 }
