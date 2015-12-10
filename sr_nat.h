@@ -5,13 +5,10 @@
 #include <inttypes.h>
 #include <time.h>
 #include <pthread.h>
-
 #include "sr_protocol.h"
-
 
 #define STARTING_PORT_NUMBER  (50000)
 #define LAST_PORT_NUMBER      (59999)
-
 #define SIMULTANIOUS_OPEN_WAIT_TIME (6)
 
 /*******  Public  ********/

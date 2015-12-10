@@ -39,7 +39,6 @@
 
 #include <sys/types.h>
 #include <arpa/inet.h>
-#include "sr_protocol.h"
 
 #ifndef IP_MAXPACKET
 #define IP_MAXPACKET 65535
