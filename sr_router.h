@@ -48,7 +48,7 @@ struct sr_instance
     int  sockfd;   /* socket to server */
     char user[32]; /* user name */
     char host[32]; /* host name */ 
-    char template_name[30]; /* template name if any */
+    char template[30]; /* template name if any */
     unsigned short topo_id;
     struct sockaddr_in sr_addr; /* address to server */
     struct sr_if* if_list; /* list of interfaces */
