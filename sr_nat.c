@@ -825,13 +825,13 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance *sr, sr_ip_hdr_
   {
    int icmpLength = length - packet->ip_hl * 4;
    sr_ip_hdr_t * originalDatagram;
-   if (icmpPacketHeader->icmp_type == type_dst_unreach)
+   if (icmpPacketHeader->icmp_type == nat_type_dst_unreach)
    {
     /* This packet is actually associated with a stream. */
     sr_icmp_t3_hdr_t *unreachablePacketHeader = (sr_icmp_t3_hdr_t *) icmpPacketHeader;
     originalDatagram = (sr_ip_hdr_t*) (unreachablePacketHeader->data);
    }
-  else if (icmpPacketHeader->icmp_type == type_time_exceeded)
+  else if (icmpPacketHeader->icmp_type == nat_type_time_exceeded)
   {
     sr_icmp_t3_hdr_t *unreachablePacketHeader = (sr_icmp_t3_hdr_t *) icmpPacketHeader;
     originalDatagram = (sr_ip_hdr_t *) (unreachablePacketHeader->data);
@@ -904,13 +904,13 @@ static void natHandleReceivedInboundIpPacket(struct sr_instance *sr, sr_ip_hdr_t
       {
          int icmpLength = length - packet->ip_hl * 4;
          sr_ip_hdr_t * originalDatagram;
-         if (icmpPacketHeader->icmp_type == type_dst_unreach)
+         if (icmpPacketHeader->icmp_type == nat_type_dst_unreach)
          {
             /* This packet is actually associated with a stream. */
             sr_icmp_t3_hdr_t *unreachablePacketHeader = (sr_icmp_t3_hdr_t *) icmpPacketHeader;
             originalDatagram = (sr_ip_hdr_t*) (unreachablePacketHeader->data);
          }
-         else if (icmpPacketHeader->icmp_type == type_time_exceeded)
+         else if (icmpPacketHeader->icmp_type == nat_type_time_exceeded)
          {
             sr_icmp_t3_hdr_t *unreachablePacketHeader = (sr_icmp_t3_hdr_t *) icmpPacketHeader;
             originalDatagram = (sr_ip_hdr_t*) (unreachablePacketHeader->data);
