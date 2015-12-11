@@ -203,7 +203,7 @@ struct sr_nat_mapping *sr_nat_lookup_internal(struct sr_nat *nat,
 
     for (sr_nat_mapping_t *mappingWalker = nat->mappings; mappingWalker != NULL; mappingWalker = mappingWalker->next)
     {
-      if ((mappingWalker->type == type) && (mappingWalker->aux_int == aux_int)&& (mappingWalker->ip_int == ip_int))
+      if ((mappingWalker->type == type) && (mappingWalker->aux_int == aux_int) && (mappingWalker->ip_int == ip_int))
       {
         result = mappingWalker;
         break;
@@ -679,7 +679,7 @@ static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, un
           associatedConnection->connectionState = nat_conn_time_wait;
         }
          
-        pthread_mutex_unlock(&sr->nat->lock);
+        pthread_mutex_unlock(&(sr->nat->lock));
       }
       
       /* Translate and forward */
@@ -722,7 +722,7 @@ static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, un
         } else {
 
             /* Potential simultaneous open */
-            pthread_mutex_lock(&sr->nat->lock);
+            pthread_mutex_lock(&(sr->nat->lock));
             
             sr_nat_mapping_t *sharedNatMapping = natTrustedLookupExternal(sr->nat, tcpHeader->destinationPort,
                                                                          nat_mapping_tcp);
@@ -783,7 +783,7 @@ static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, un
       {
 
         /* Inbound FIN detected. Put connection into TIME_WAIT state */
-        pthread_mutex_lock(&sr->nat->lock);
+        pthread_mutex_lock(&(sr->nat->lock));
 
         sr_nat_mapping_t *sharedNatMapping = natTrustedLookupExternal(sr->nat, tcpHeader->destinationPort,
                                                                    nat_mapping_tcp);
