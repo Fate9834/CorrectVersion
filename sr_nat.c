@@ -400,8 +400,8 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
           sr_ip_hdr_t *embeddedIpPacket = NULL;
           sr_nat_mapping_t *natLookupResult = NULL;
 
-          if ((icmpHeader->icmp_type == type_dst_unreach)
-             || icmpHeader->icmp_type == type_time_exceeded))
+          if ((icmpHeader->icmp_type == nat_type_dst_unreach)
+             || (icmpHeader->icmp_type == nat_type_time_exceeded))
           {
             sr_icmp_t3_hdr_t *unreachableHeader = (sr_icmp_t3_hdr_t *)icmpHeader;
             embeddedIpPacket = (sr_ip_hdr_t *)unreachableHeader->data;
@@ -486,8 +486,8 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
             sr_ip_hdr_t *embeddedIpPacket = NULL;
             sr_nat_mapping_t *natLookupResult = NULL;
 
-            if ((icmpHeader->icmp_type == type_dst_unreach)
-               || (icmpHeader->icmp_type == type_time_exceeded))
+            if ((icmpHeader->icmp_type == nat_type_dst_unreach)
+               || (icmpHeader->icmp_type == nat_type_time_exceeded))
             {
               sr_icmp_t3_hdr_t *unreachableHeader = (sr_icmp_t3_hdr_t *)icmpHeader;
               embeddedIpPacket = (sr_ip_hdr_t *)unreachableHeader->data;
@@ -805,7 +805,7 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance *sr, sr_ip_hdr_
   { 
     sr_icmp_hdr_t *icmpPacketHeader = icmp_header(packet);
 
-    if ((icmpPacketHeader->icmp_type) == nat_type_echo_request) || (icmpPacketHeader->icmp_type == nat_type_echo_reply))
+    if ((icmpPacketHeader->icmp_type == nat_type_echo_request) || (icmpPacketHeader->icmp_type == nat_type_echo_reply))
     {
       sr_icmp_t0_hdr_t* rewrittenIcmpHeader = (sr_icmp_t0_hdr_t*) icmpPacketHeader;
       int icmpLength = length - packet->ip_hl * 4;
