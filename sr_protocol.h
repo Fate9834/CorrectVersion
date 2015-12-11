@@ -163,7 +163,7 @@ typedef struct sr_ethernet_hdr sr_ethernet_hdr_t;
 
 enum sr_icmp_type
 { 
-  type_echo_reply = 0x0001,
+  type_echo_reply = 0x0000,
   type_echo_request = 0x1000,
   type_dst_unreach = 0x0011,
   type_time_exceeded = 0x1011,
