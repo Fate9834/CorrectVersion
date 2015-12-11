@@ -152,10 +152,13 @@ void arp_handlepacket(struct sr_instance *sr,
 
         /* Check ARP cache  */
         arp_entry = sr_arpcache_lookup(&sr->cache, arp_hdr->ar_sip);
+
         if (arp_entry != 0){
           free(arp_entry);
         } else {
             arp_req = sr_arpcache_insert(&sr->cache, arp_hdr->ar_sha, arp_hdr->ar_sip);
+
+            printf("** ARP entry created\n");
 
             /* Check ARP request queue, if not empty send out packets on it*/
             if (arp_req != 0) {
@@ -163,6 +166,7 @@ void arp_handlepacket(struct sr_instance *sr,
 
               while (pkt_wait != 0) {
 
+                printf("** ARP resolved, sending queued packets\n");
                 /* Send the packets out */
                 s_interface = sr_get_interface(sr, pkt_wait->iface);
                 struct sr_ethernet_hdr sr_ether_hdr;
@@ -184,7 +188,10 @@ void arp_handlepacket(struct sr_instance *sr,
                 temp = pkt_wait;
                 pkt_wait = pkt_wait->next;
                 free(temp);
-                }
+              }
+
+	    printf("** All queued packets sent\n");
+
             } 
           }   
       }
@@ -288,6 +295,8 @@ void ip_handlepacket(struct sr_instance *sr,
 
     /* Check whether NAT is enabled */
     if (!natEnabled(sr)){
+
+      printf("** NO NAT\n");
       
       /* Check interface IP to determine whether this IP packet is for me */
       if (sr_packet_is_for_me(sr, ip_hdr->ip_dst)) {
@@ -298,6 +307,8 @@ void ip_handlepacket(struct sr_instance *sr,
           ip_forwardpacket(sr, ip_hdr, len, interface);
         }
     } else {
+
+        printf("** NAT ENABLED\n");
         nat_handle_ippacket(sr, ip_hdr, ntohs(ip_hdr->ip_len), r_interface);
     }   
 }
@@ -326,8 +337,8 @@ void ip_handlepacketforme(struct sr_instance *sr,
       sr_icmp_hdr_t *icmp_hdr_ptr = icmp_header(ip_hdr);
 
       icmp_hdr_ptr->icmp_sum = 0;
-      icmp_hdr_ptr->icmp_type = htons(type_echo_reply);
-      icmp_hdr_ptr->icmp_code = htons(code_echo_reply);
+      icmp_hdr_ptr->icmp_type = type_echo_reply;
+      icmp_hdr_ptr->icmp_code = code_echo_reply;
       icmp_len = ntohs(ip_hdr->ip_len)-ip_hdr->ip_hl * 4;
               
       /* Copy the packet over */
@@ -348,9 +359,15 @@ void ip_handlepacketforme(struct sr_instance *sr,
 
         /* Entry Exists, we can send it out right now */
         sr_add_ethernet_send(sr, cache_packet, total_len, dst, ethertype_ip);
+
+        printf("** ARP entry exists, Echo reply sent\n");
+
       } else {
           req = sr_arpcache_queuereq(&sr->cache, dst, cache_packet, 
                                     total_len, interface);
+
+          printf("** ARP entry doesn't exist, Echo reply queued\n");
+
           sr_handle_arpreq(sr, req);
         }
     } else if (ip_hdr->ip_p == ip_protocol_tcp||ip_hdr->ip_p == ip_protocol_udp) {
@@ -366,14 +383,16 @@ void ip_forwardpacket(struct sr_instance *sr,
         sr_ip_hdr_t *ip_hdr,
         unsigned int len,
         char *interface) {
-        
+
+        printf("** FORWARDING\n");
+
         struct sr_arpreq *req;
         struct sr_arpentry *arp_entry;
         uint8_t icmp_type;
         uint8_t icmp_code;
 
         ip_hdr->ip_ttl --;
-
+ 	
         /* Update checksum */
         ip_hdr->ip_sum = 0;
         ip_hdr->ip_sum = cksum(ip_hdr, ip_hdr->ip_hl * 4);
@@ -482,7 +501,7 @@ void sr_handle_arpreq(struct sr_instance *sr, struct sr_arpreq *req)
           send_ip_hdr.ip_sum = cksum(&send_ip_hdr, ICMP_IP_HDR_LEN_BYTE);
 
           cache_packet = malloc(total_len);
-          struct sr_icmp_t3_hdr icmp_error_packet = icmp_send_error_packet(ip_hdr, 1);
+          struct sr_icmp_t3_hdr icmp_error_packet = icmp_send_error_packet(ip_hdr, code_host_unreach);
 
           memcpy(cache_packet, &(send_ip_hdr), ICMP_IP_HDR_LEN_BYTE);
           memcpy(cache_packet + ICMP_IP_HDR_LEN_BYTE, &(icmp_error_packet), 
@@ -521,6 +540,9 @@ void sr_handle_arpreq(struct sr_instance *sr, struct sr_arpreq *req)
         }  
       } else {
           arp_boardcast(sr, req);
+
+	  printf("** APR boardcasted\n");
+
           req->sent = time(0);
           req->times_sent ++;
         }
