@@ -99,9 +99,9 @@ void sr_print_if_list(struct sr_instance* );
 
 /* -- sr_nat.c -- */
 
-void nat_handle_ippacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket,
+void sr_nat_handle_ip_packet(struct sr_instance *sr, sr_ip_hdr_t *ipPacket,
                         unsigned int length, struct sr_if *r_interface);
-void NatUndoPacketMapping(struct sr_instance *sr, sr_ip_hdr_t *ip_hdr, unsigned int length, 
+void sr_nat_undo_mapping(struct sr_instance *sr, sr_ip_hdr_t *ip_hdr, unsigned int length, 
                          struct sr_if *r_interface);
 
 #endif /* SR_ROUTER_H */

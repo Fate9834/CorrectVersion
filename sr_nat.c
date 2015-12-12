@@ -11,18 +11,18 @@
 
 static const char internal_if[] = "eth1";
 
-static void natHandleIcmpPacket(struct sr_instance* sr, sr_ip_hdr_t *ipPacket, unsigned int length,
+static void sr_nat_handle_ICMP(struct sr_instance* sr, sr_ip_hdr_t *ipPacket, unsigned int length,
                                struct sr_if *r_interface);
-static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, unsigned int length,
+static void sr_nat_handle_TCP(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, unsigned int length,
                               struct sr_if *r_interface);
-static void natHandleReceivedOutboundIpPacket(struct sr_instance *sr, sr_ip_hdr_t *packet, unsigned int length,
+static void sr_nat_handle_outbound(struct sr_instance *sr, sr_ip_hdr_t *packet, unsigned int length,
                                              struct sr_if *r_interface, sr_nat_mapping_t *natMapping);
-static void natHandleReceivedInboundIpPacket(struct sr_instance *sr, sr_ip_hdr_t *packet, unsigned int length,
+static void sr_nat_handle_inbound(struct sr_instance *sr, sr_ip_hdr_t *packet, unsigned int length,
                                             struct sr_if *r_interface, sr_nat_mapping_t *natMapping);
-static void natRecalculateTcpChecksum(sr_ip_hdr_t *tcpPacket, unsigned int length);
+static void sr_nat_recalculate_TCP_checksum(sr_ip_hdr_t *tcpPacket, unsigned int length);
 static void sr_nat_destroy_connection(sr_nat_mapping_t *natMapping, sr_nat_connection_t *connection);
 static void sr_nat_destroy_mapping(sr_nat_t *nat, sr_nat_mapping_t *natMapping);
-static uint16_t natNextMappingNumber(sr_nat_t *nat, sr_nat_mapping_type mappingType);
+static uint16_t sr_nat_create_mapping_number(sr_nat_t *nat, sr_nat_mapping_type mappingType);
 static sr_nat_mapping_t *natTrustedLookupExternal(sr_nat_t *nat, uint16_t aux_ext,
                                                  sr_nat_mapping_type type);
 static sr_nat_mapping_t *natTrustedLookupInternal(sr_nat_t *nat, uint32_t ip_int, uint16_t aux_int,
@@ -252,7 +252,7 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat, uint32_t ip_int
     return copy;
 }
 
-void nat_handle_ippacket(struct sr_instance *sr,
+void sr_nat_handle_ip_packet(struct sr_instance *sr,
                         sr_ip_hdr_t *ipPacket, unsigned int length,
                         struct sr_if *r_interface)
 {
@@ -260,18 +260,18 @@ void nat_handle_ippacket(struct sr_instance *sr,
     {
 
       printf("** Received TCP\n");
-      natHandleTcpPacket(sr, ipPacket, length, r_interface);
+      sr_nat_handle_TCP(sr, ipPacket, length, r_interface);
     } else if (ipPacket->ip_p == ip_protocol_icmp)
     {
 
       printf("** Received ICMP\n");
-      natHandleIcmpPacket(sr, ipPacket, length, r_interface);
+      sr_nat_handle_ICMP(sr, ipPacket, length, r_interface);
     } else {
         fprintf(stderr, "** Received packet of unknown IP protocol type %u. Dropping.\n", ipPacket->ip_p);
       }
 }
 
-void NatUndoPacketMapping(struct sr_instance *sr, sr_ip_hdr_t *ip_hdr,
+void sr_nat_undo_mapping(struct sr_instance *sr, sr_ip_hdr_t *ip_hdr,
                          unsigned int length, struct sr_if *r_interface)
 {
     sr_nat_mapping_t *natMap;
@@ -307,7 +307,7 @@ void NatUndoPacketMapping(struct sr_instance *sr, sr_ip_hdr_t *ip_hdr,
           tcpHeader->sourcePort = natMap->aux_int;
           ip_hdr->ip_src = natMap->ip_int;
             
-          natRecalculateTcpChecksum(ip_hdr, length);  
+          sr_nat_recalculate_TCP_checksum(ip_hdr, length);  
           ip_hdr->ip_sum = 0;
           ip_hdr->ip_sum = cksum(ip_hdr, ip_hdr->ip_hl * 4);
         }
@@ -344,7 +344,7 @@ void NatUndoPacketMapping(struct sr_instance *sr, sr_ip_hdr_t *ip_hdr,
             tcpHeader->destinationPort = htons(natMap->aux_ext);
             ip_hdr->ip_dst = sr_get_interface(sr, longest_prefix_matching(sr, ip_hdr->ip_src)->interface)->ip;
             
-            natRecalculateTcpChecksum(ip_hdr, length);
+            sr_nat_recalculate_TCP_checksum(ip_hdr, length);
             ip_hdr->ip_sum = 0;
             ip_hdr->ip_sum = cksum(ip_hdr, (ip_hdr->ip_hl)*4);
             
@@ -354,7 +354,7 @@ void NatUndoPacketMapping(struct sr_instance *sr, sr_ip_hdr_t *ip_hdr,
       }
 }
 
-static void natHandleIcmpPacket(struct sr_instance *sr,
+static void sr_nat_handle_ICMP(struct sr_instance *sr,
                                sr_ip_hdr_t *ipPacket, unsigned int length,
                                struct sr_if *r_interface)
 {
@@ -400,7 +400,7 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
         }
         
         printf("** Mapping created for outbound ICMP ECHO\n");
-        natHandleReceivedOutboundIpPacket(sr, ipPacket, length, r_interface, natLookupResult);
+        sr_nat_handle_outbound(sr, ipPacket, length, r_interface, natLookupResult);
         free(natLookupResult);
       } else {
 
@@ -448,7 +448,7 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
           /* If hit the entry for that packet, modify and send it out */
           if (natLookupResult != NULL)
           {
-            natHandleReceivedOutboundIpPacket(sr, ipPacket, length, r_interface, natLookupResult); 
+            sr_nat_handle_outbound(sr, ipPacket, length, r_interface, natLookupResult); 
             free(natLookupResult);
           }
         }
@@ -491,7 +491,7 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
             /* No mapping exists. Assume ping is actually for us */
             ip_handlepacketforme(sr, ipPacket, r_interface->name);
           } else {
-              natHandleReceivedInboundIpPacket(sr, ipPacket, length, r_interface,natLookupResult);
+              sr_nat_handle_inbound(sr, ipPacket, length, r_interface,natLookupResult);
               free (natLookupResult);
             }
         } else {
@@ -532,14 +532,14 @@ static void natHandleIcmpPacket(struct sr_instance *sr,
               }
             if (natLookupResult != NULL)
             {
-              natHandleReceivedInboundIpPacket(sr, ipPacket, length, r_interface, natLookupResult);
+              sr_nat_handle_inbound(sr, ipPacket, length, r_interface, natLookupResult);
               free(natLookupResult);
             }
           }
       }
 }
 
-static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, unsigned int length,
+static void sr_nat_handle_TCP(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, unsigned int length,
                               struct sr_if *r_interface)
 {
 
@@ -685,7 +685,7 @@ static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, un
       /* Translate and forward */
       printf("** Translating and forwarding Outbound TCP\n");  
 
-      natHandleReceivedOutboundIpPacket(sr, ipPacket, length, r_interface, natMapping);
+      sr_nat_handle_outbound(sr, ipPacket, length, r_interface, natMapping);
 
       printf("** Outbound TCP handled\n"); 
 
@@ -748,7 +748,7 @@ static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, un
               connection->next = sharedNatMapping->conns;
               sharedNatMapping->conns = connection;
               
-              natHandleReceivedInboundIpPacket(sr, ipPacket, length, r_interface, natMapping);
+              sr_nat_handle_inbound(sr, ipPacket, length, r_interface, natMapping);
       
               if (natMapping) 
               { 
@@ -816,7 +816,7 @@ static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, un
             }
         }
       
-      natHandleReceivedInboundIpPacket(sr, ipPacket, length, r_interface, natMapping);
+      sr_nat_handle_inbound(sr, ipPacket, length, r_interface, natMapping);
       
       if (natMapping) 
       { 
@@ -825,7 +825,7 @@ static void natHandleTcpPacket(struct sr_instance *sr, sr_ip_hdr_t *ipPacket, un
     }
 }
 
-static void natHandleReceivedOutboundIpPacket(struct sr_instance *sr, sr_ip_hdr_t *packet, unsigned int length,
+static void sr_nat_handle_outbound(struct sr_instance *sr, sr_ip_hdr_t *packet, unsigned int length,
                                              struct sr_if *r_interface, sr_nat_mapping_t *natMapping)
 {
 
@@ -911,7 +911,7 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance *sr, sr_ip_hdr_
 
       tcpHeader->sourcePort = natMapping->aux_ext;
       packet->ip_src = sr_get_interface(sr, longest_prefix_matching(sr, packet->ip_dst)->interface)->ip;
-      natRecalculateTcpChecksum(packet, length);
+      sr_nat_recalculate_TCP_checksum(packet, length);
 
       printf("** TCP header modified and checksum updated\n");
 
@@ -919,7 +919,7 @@ static void natHandleReceivedOutboundIpPacket(struct sr_instance *sr, sr_ip_hdr_
     }
 }
 
-static void natHandleReceivedInboundIpPacket(struct sr_instance *sr, sr_ip_hdr_t *packet, unsigned int length,
+static void sr_nat_handle_inbound(struct sr_instance *sr, sr_ip_hdr_t *packet, unsigned int length,
                                             struct sr_if *r_interface, sr_nat_mapping_t *natMapping)
 {
     if (packet->ip_p == ip_protocol_icmp)
@@ -997,12 +997,12 @@ static void natHandleReceivedInboundIpPacket(struct sr_instance *sr, sr_ip_hdr_t
       tcpHeader->destinationPort = natMapping->aux_int;
       packet->ip_dst = natMapping->ip_int;
       
-      natRecalculateTcpChecksum(packet, length);
+      sr_nat_recalculate_TCP_checksum(packet, length);
       ip_forwardpacket(sr, packet, length, r_interface->name);
     }
 }
 
-static void natRecalculateTcpChecksum(sr_ip_hdr_t *tcpPacket, unsigned int length)
+static void sr_nat_recalculate_TCP_checksum(sr_ip_hdr_t *tcpPacket, unsigned int length)
 {
     unsigned int tcpLength = length - tcpPacket->ip_hl * 4;
     uint8_t *packetCopy = malloc(sizeof(sr_tcp_ip_pseudo_hdr_t) + tcpLength);
@@ -1095,7 +1095,7 @@ static void sr_nat_destroy_mapping(sr_nat_t *nat, sr_nat_mapping_t *natMapping)
     }
 }
 
-static uint16_t natNextMappingNumber(sr_nat_t *nat, sr_nat_mapping_type mappingType)
+static uint16_t sr_nat_create_mapping_number(sr_nat_t *nat, sr_nat_mapping_type mappingType)
 {
     uint16_t startIndex;
     sr_nat_mapping_t *mapping_walker = nat->mappings;
@@ -1174,7 +1174,7 @@ static sr_nat_mapping_t *natTrustedCreateMapping(sr_nat_t *nat, uint32_t ip_int,
 {
     struct sr_nat_mapping *mapping = malloc(sizeof(sr_nat_mapping_t));
    
-    mapping->aux_ext = htons(natNextMappingNumber(nat, type));
+    mapping->aux_ext = htons(sr_nat_create_mapping_number(nat, type));
     mapping->conns = NULL;
    
     /* Store mapping information */

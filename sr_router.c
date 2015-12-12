@@ -309,7 +309,7 @@ void ip_handlepacket(struct sr_instance *sr,
     } else {
 
         printf("** NAT ENABLED\n");
-        nat_handle_ippacket(sr, ip_hdr, ntohs(ip_hdr->ip_len), r_interface);
+        sr_nat_handle_ip_packet(sr, ip_hdr, ntohs(ip_hdr->ip_len), r_interface);
     }   
 }
 
@@ -729,7 +729,7 @@ void sr_icmp_with_payload(struct sr_instance *sr,
 
     if (icmp_type == 11 && icmp_code == 0){
       if (natEnabled(sr)){
-        NatUndoPacketMapping(sr, ip_hdr, ip_hdr->ip_len, r_interface);
+        sr_nat_undo_mapping(sr, ip_hdr, ip_hdr->ip_len, r_interface);
       }
     }
 
